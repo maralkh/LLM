@@ -56,12 +56,12 @@ class EarlyStopping(Callback):
             self.monitor_op = np.greater
             self.min_delta *= 1
         
-        self.best = np.Inf if mode == 'min' else -np.Inf
+        self.best = np.inf if mode == 'min' else -np.inf
     
     def on_train_begin(self, trainer):
         self.wait = 0
         self.stopped_epoch = 0
-        self.best = np.Inf if self.mode == 'min' else -np.Inf
+        self.best = np.inf if self.mode == 'min' else -np.inf
     
     def on_epoch_end(self, trainer, epoch, logs=None):
         if logs is None:
@@ -104,10 +104,10 @@ class ModelCheckpoint(Callback):
         
         if mode == 'min':
             self.monitor_op = np.less
-            self.best = np.Inf
+            self.best = np.inf
         else:
             self.monitor_op = np.greater
-            self.best = -np.Inf
+            self.best = -np.inf
     
     def on_epoch_end(self, trainer, epoch, logs=None):
         self.epochs_since_last_save += 1
@@ -189,15 +189,15 @@ class ReduceLROnPlateau(Callback):
         
         if mode == 'min':
             self.monitor_op = lambda a, b: np.less(a, b - self.min_delta)
-            self.best = np.Inf
+            self.best = np.inf
         else:
             self.monitor_op = lambda a, b: np.greater(a, b + self.min_delta)
-            self.best = -np.Inf
+            self.best = -np.inf
     
     def on_train_begin(self, trainer):
         self.wait = 0
         self.cooldown_counter = 0
-        self.best = np.Inf if self.mode == 'min' else -np.Inf
+        self.best = np.inf if self.mode == 'min' else -np.inf
     
     def on_epoch_end(self, trainer, epoch, logs=None):
         if logs is None:
