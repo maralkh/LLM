@@ -1,0 +1,55 @@
+amp_dtype: float16
+batch_size: 32
+checkpoint:
+  keep_last: 3
+  mode: min
+  monitor: val_loss
+  save_best: true
+  save_dir: ./checkpoints/advanced
+  save_every: 1000
+dataset_path: advanced_dataset
+distributed:
+  backend: nccl
+  enabled: false
+  find_unused_parameters: false
+  gradient_as_bucket_view: true
+epochs: 15
+eval_batch_size: 32
+eval_every: 1000
+eval_steps: null
+gradient_accumulation_steps: 4
+logging:
+  log_dir: ./logs
+  log_every: 25
+  use_tensorboard: true
+  use_wandb: true
+  wandb_entity: my_team
+  wandb_project: advanced_training
+max_grad_norm: 0.5
+max_length: 512
+max_steps: null
+model_name: advanced_model
+num_workers: 8
+optimizer:
+  betas:
+  - 0.9
+  - 0.95
+  eps: 1.0e-06
+  lr: 0.0003
+  name: adamw
+  params:
+    amsgrad: true
+    maximize: false
+  weight_decay: 0.01
+pin_memory: true
+resume_from: null
+scheduler:
+  min_lr: 1.0e-06
+  name: cosine
+  params:
+    T_max: 45000
+    eta_min: 1.0e-07
+  total_steps: 50000
+  warmup_steps: 1000
+seed: 123
+use_amp: true
