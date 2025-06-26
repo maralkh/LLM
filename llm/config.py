@@ -17,6 +17,18 @@ yaml.add_representer(tuple, tuple_representer)
 yaml.add_constructor('tag:yaml.org,2002:python/tuple', tuple_constructor)
 
 @dataclass
+class GenerationConfig:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+@dataclass
+class InferenceConfig:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+@dataclass
 class OptimizerConfig:
     name: str = "adamw"
     lr: float = 1e-4

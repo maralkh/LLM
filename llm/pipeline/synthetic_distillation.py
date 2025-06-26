@@ -6,7 +6,7 @@ Complete pipeline combining synthetic data generation and knowledge distillation
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional, Union, Tuple
 import json
 import copy
 from pathlib import Path
@@ -18,7 +18,7 @@ from ..data.synthetic import (
     MathDataGenerator, CodeDataGenerator,
     create_synthetic_data_generator
 )
-from ..distillation.distillation import (
+from ..data.distillation import (
     DistillationTrainer, DistillationConfig,
     ProgressiveDistillationTrainer, SelfDistillationTrainer,
     create_distillation_trainer
@@ -26,6 +26,760 @@ from ..distillation.distillation import (
 from ..models.llama import create_llama_7b
 from ..config import TrainingConfig
 
+import torch
+import torch.nn as nn
+from typing import Dict, Any, Optional, List
+from dataclasses import dataclass
+import time
+import json
+
+@dataclass
+class ProductionCompressionConfig:
+    """Configuration for production compression pipeline"""
+    # Compression settings
+    target_compression: float = 0.3  # Target model size ratio
+    compression_method: str = "distillation"  # "distillation", "pruning", "quantization"
+    
+    # Synthetic data generation
+    num_synthetic_samples: int = 50000
+    synthetic_domains: List[str] = None
+    data_quality_threshold: float = 0.8
+    
+    # Distillation settings
+    distillation_epochs: int = 10
+    distillation_lr: float = 1e-4
+    temperature: float = 4.0
+    alpha: float = 0.7  # Weight for distillation loss
+    
+    # Student model architecture
+    student_layers: Optional[int] = None
+    student_hidden_size: Optional[int] = None
+    student_attention_heads: Optional[int] = None
+    
+    # Evaluation settings
+    eval_datasets: List[str] = None
+    performance_threshold: float = 0.85  # Minimum performance to maintain
+    
+    # Production settings
+    batch_size: int = 16
+    max_sequence_length: int = 512
+    device: str = "auto"
+    
+    def __post_init__(self):
+        if self.synthetic_domains is None:
+            self.synthetic_domains = ["general", "reasoning", "creative"]
+        if self.eval_datasets is None:
+            self.eval_datasets = ["validation"]
+
+class ProductionCompressionPipeline:
+    """Complete pipeline for production model compression"""
+    
+    def __init__(self, teacher_model, tokenizer, config: Optional[ProductionCompressionConfig] = None):
+        self.teacher_model = teacher_model
+        self.tokenizer = tokenizer
+        self.config = config or ProductionCompressionConfig()
+        
+        # Set device
+        if self.config.device == "auto":
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        else:
+            self.device = torch.device(self.config.device)
+        
+        self.teacher_model.to(self.device)
+        self.teacher_model.eval()
+        
+        # Pipeline state
+        self.synthetic_data = []
+        self.student_model = None
+        self.compression_metrics = {}
+        
+    def run_complete_pipeline(self, synthetic_config=None, distillation_config=None) -> Dict[str, Any]:
+        """Run end-to-end compression pipeline"""
+        print(f"🚀 Starting Production Compression Pipeline")
+        print(f"Target compression: {self.config.target_compression:.1%}")
+        print(f"Device: {self.device}")
+        
+        pipeline_start = time.time()
+        
+        try:
+            # Step 1: Analyze teacher model
+            teacher_stats = self._analyze_teacher_model()
+            print(f"✅ Teacher model analysis complete")
+            
+            # Step 2: Generate synthetic training data
+            self.synthetic_data = self._generate_synthetic_data()
+            print(f"✅ Generated {len(self.synthetic_data)} synthetic samples")
+            
+            # Step 3: Design student architecture
+            self.student_model = self._create_student_model(teacher_stats)
+            print(f"✅ Student model created")
+            
+            # Step 4: Run distillation training
+            distillation_results = self._run_distillation_training()
+            print(f"✅ Distillation training complete")
+            
+            # Step 5: Evaluate compressed model
+            evaluation_results = self._evaluate_compressed_model()
+            print(f"✅ Evaluation complete")
+            
+            # Step 6: Optimize for production
+            production_model = self._optimize_for_production()
+            print(f"✅ Production optimization complete")
+            
+            # Step 7: Generate deployment artifacts
+            deployment_artifacts = self._generate_deployment_artifacts()
+            print(f"✅ Deployment artifacts generated")
+            
+            pipeline_time = time.time() - pipeline_start
+            
+            # Compile final results
+            results = {
+                'pipeline_status': 'success',
+                'pipeline_time': pipeline_time,
+                'teacher_stats': teacher_stats,
+                'student_model': production_model,
+                'compression_ratio': self._calculate_compression_ratio(),
+                'distillation_results': distillation_results,
+                'evaluation_results': evaluation_results,
+                'deployment_artifacts': deployment_artifacts,
+                'synthetic_data_stats': {
+                    'total_samples': len(self.synthetic_data),
+                    'domains': self.config.synthetic_domains,
+                    'avg_quality_score': self._calculate_avg_quality_score()
+                }
+            }
+            
+            print(f"🎉 Pipeline completed successfully in {pipeline_time:.2f}s")
+            print(f"📊 Compression ratio: {results['compression_ratio']:.1%}")
+            print(f"📈 Performance retention: {evaluation_results.get('performance_retention', 'N/A')}")
+            
+            return results
+            
+        except Exception as e:
+            print(f"❌ Pipeline failed: {str(e)}")
+            return {
+                'pipeline_status': 'failed',
+                'error': str(e),
+                'pipeline_time': time.time() - pipeline_start
+            }
+    
+    def _analyze_teacher_model(self) -> Dict[str, Any]:
+        """Analyze teacher model architecture and performance"""
+        print("🔍 Analyzing teacher model...")
+        
+        # Count parameters
+        total_params = sum(p.numel() for p in self.teacher_model.parameters())
+        trainable_params = sum(p.numel() for p in self.teacher_model.parameters() if p.requires_grad)
+        
+        # Get model architecture info
+        if hasattr(self.teacher_model, 'config'):
+            config = self.teacher_model.config
+            architecture_info = {
+                'num_layers': getattr(config, 'num_hidden_layers', 'unknown'),
+                'hidden_size': getattr(config, 'hidden_size', 'unknown'),
+                'num_attention_heads': getattr(config, 'num_attention_heads', 'unknown'),
+                'vocab_size': getattr(config, 'vocab_size', 'unknown')
+            }
+        else:
+            architecture_info = {'type': 'custom'}
+        
+        # Estimate memory usage
+        model_size_mb = total_params * 4 / (1024 * 1024)  # Assuming float32
+        
+        stats = {
+            'total_parameters': total_params,
+            'trainable_parameters': trainable_params,
+            'model_size_mb': model_size_mb,
+            'architecture': architecture_info,
+            'target_parameters': int(total_params * self.config.target_compression),
+            'target_size_mb': model_size_mb * self.config.target_compression
+        }
+        
+        return stats
+    
+    def _generate_synthetic_data(self) -> List[Dict[str, Any]]:
+        """Generate high-quality synthetic training data"""
+        print("🎲 Generating synthetic training data...")
+        
+        synthetic_data = []
+        samples_per_domain = self.config.num_synthetic_samples // len(self.config.synthetic_domains)
+        
+        for domain in self.config.synthetic_domains:
+            print(f"  Generating {samples_per_domain} samples for domain: {domain}")
+            
+            domain_samples = self._generate_domain_samples(domain, samples_per_domain)
+            synthetic_data.extend(domain_samples)
+        
+        # Filter by quality
+        high_quality_data = [
+            sample for sample in synthetic_data 
+            if sample.get('quality_score', 0) >= self.config.data_quality_threshold
+        ]
+        
+        print(f"  Filtered to {len(high_quality_data)} high-quality samples")
+        return high_quality_data
+    
+    def _generate_domain_samples(self, domain: str, num_samples: int) -> List[Dict[str, Any]]:
+        """Generate samples for a specific domain"""
+        samples = []
+        
+        # Domain-specific prompts
+        domain_prompts = self._get_domain_prompts(domain)
+        
+        for i in range(num_samples):
+            prompt = domain_prompts[i % len(domain_prompts)]
+            
+            try:
+                # Generate with teacher model
+                inputs = self.tokenizer.encode(prompt, return_tensors='pt').to(self.device)
+                
+                with torch.no_grad():
+                    outputs = self.teacher_model.generate(
+                        inputs,
+                        max_length=inputs.shape[1] + 128,
+                        temperature=0.8,
+                        do_sample=True,
+                        pad_token_id=self.tokenizer.eos_token_id
+                    )
+                
+                generated_text = self.tokenizer.decode(
+                    outputs[0][inputs.shape[1]:], 
+                    skip_special_tokens=True
+                )
+                
+                # Calculate quality score (simplified)
+                quality_score = self._calculate_quality_score(prompt, generated_text)
+                
+                sample = {
+                    'domain': domain,
+                    'prompt': prompt,
+                    'response': generated_text,
+                    'quality_score': quality_score,
+                    'input_ids': inputs[0].cpu(),
+                    'target_ids': outputs[0].cpu()
+                }
+                
+                samples.append(sample)
+                
+            except Exception as e:
+                print(f"    Warning: Failed to generate sample {i}: {e}")
+                continue
+        
+        return samples
+    
+    def _get_domain_prompts(self, domain: str) -> List[str]:
+        """Get prompts for specific domain"""
+        prompts = {
+            'general': [
+                "Explain the concept of",
+                "What is the relationship between",
+                "Describe the process of",
+                "Compare and contrast",
+                "Analyze the importance of"
+            ],
+            'reasoning': [
+                "If A implies B and B implies C, then",
+                "Given the following premises, what can we conclude:",
+                "Solve this step by step:",
+                "What is the logical flaw in this argument:",
+                "Use deductive reasoning to determine:"
+            ],
+            'creative': [
+                "Write a short story about",
+                "Create a poem that describes",
+                "Imagine a world where",
+                "Design a creative solution for",
+                "Compose a dialogue between"
+            ]
+        }
+        
+        base_prompts = prompts.get(domain, prompts['general'])
+        
+        # Expand prompts with variations
+        expanded_prompts = []
+        topics = ["artificial intelligence", "climate change", "space exploration", 
+                 "quantum physics", "human psychology", "technology ethics"]
+        
+        for prompt in base_prompts:
+            for topic in topics:
+                expanded_prompts.append(f"{prompt} {topic}")
+        
+        return expanded_prompts
+    
+    def _calculate_quality_score(self, prompt: str, response: str) -> float:
+        """Calculate quality score for generated text"""
+        # Simplified quality metrics
+        score = 0.0
+        
+        # Length check
+        if 10 <= len(response) <= 500:
+            score += 0.3
+        
+        # Coherence check (simplified)
+        if response and not response.startswith(prompt):
+            score += 0.2
+        
+        # Repetition check
+        words = response.split()
+        if len(set(words)) / max(len(words), 1) > 0.7:
+            score += 0.3
+        
+        # Completion check
+        if response.endswith('.') or response.endswith('!') or response.endswith('?'):
+            score += 0.2
+        
+        return min(score, 1.0)
+    
+    def _create_student_model(self, teacher_stats: Dict[str, Any]) -> nn.Module:
+        """Create student model architecture"""
+        print("🏗️ Creating student model architecture...")
+        
+        # Calculate student architecture dimensions
+        if self.config.student_layers is None:
+            teacher_layers = teacher_stats['architecture'].get('num_layers', 12)
+            if isinstance(teacher_layers, int):
+                self.config.student_layers = max(1, int(teacher_layers * self.config.target_compression))
+            else:
+                self.config.student_layers = 6  # Default
+        
+        if self.config.student_hidden_size is None:
+            teacher_hidden = teacher_stats['architecture'].get('hidden_size', 768)
+            if isinstance(teacher_hidden, int):
+                self.config.student_hidden_size = max(128, int(teacher_hidden * 0.8))
+            else:
+                self.config.student_hidden_size = 512  # Default
+        
+        if self.config.student_attention_heads is None:
+            teacher_heads = teacher_stats['architecture'].get('num_attention_heads', 12)
+            if isinstance(teacher_heads, int):
+                self.config.student_attention_heads = max(1, int(teacher_heads * 0.75))
+            else:
+                self.config.student_attention_heads = 8  # Default
+        
+        # Create student model (simplified implementation)
+        try:
+            if hasattr(self.teacher_model, 'config'):
+                # Clone and modify teacher config
+                student_config = type(self.teacher_model.config)(**self.teacher_model.config.__dict__)
+                student_config.num_hidden_layers = self.config.student_layers
+                student_config.hidden_size = self.config.student_hidden_size
+                student_config.num_attention_heads = self.config.student_attention_heads
+                
+                # Create student model with same architecture type
+                student_model = type(self.teacher_model)(student_config)
+            else:
+                # Fallback: create a simple transformer
+                student_model = self._create_simple_transformer()
+            
+            student_model.to(self.device)
+            
+            # Initialize with smaller weights
+            self._initialize_student_weights(student_model)
+            
+            print(f"  Student layers: {self.config.student_layers}")
+            print(f"  Student hidden size: {self.config.student_hidden_size}")
+            print(f"  Student attention heads: {self.config.student_attention_heads}")
+            
+            return student_model
+            
+        except Exception as e:
+            print(f"  Warning: Could not create optimized student model: {e}")
+            print("  Using teacher model as fallback")
+            return self.teacher_model
+    
+    def _create_simple_transformer(self) -> nn.Module:
+        """Create a simple transformer model as fallback"""
+        class SimpleTransformer(nn.Module):
+            def __init__(self, vocab_size=50257, hidden_size=512, num_layers=6):
+                super().__init__()
+                self.embedding = nn.Embedding(vocab_size, hidden_size)
+                self.layers = nn.ModuleList([
+                    nn.TransformerEncoderLayer(hidden_size, 8) 
+                    for _ in range(num_layers)
+                ])
+                self.lm_head = nn.Linear(hidden_size, vocab_size)
+            
+            def forward(self, input_ids, **kwargs):
+                x = self.embedding(input_ids)
+                for layer in self.layers:
+                    x = layer(x)
+                logits = self.lm_head(x)
+                return type('Output', (), {'logits': logits})()
+            
+            def generate(self, input_ids, **kwargs):
+                # Simplified generation
+                return input_ids
+        
+        return SimpleTransformer(
+            hidden_size=self.config.student_hidden_size,
+            num_layers=self.config.student_layers
+        )
+    
+    def _initialize_student_weights(self, student_model: nn.Module):
+        """Initialize student model weights"""
+        for module in student_model.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.normal_(module.weight, mean=0.0, std=0.02)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.Embedding):
+                nn.init.normal_(module.weight, mean=0.0, std=0.02)
+    
+    def _run_distillation_training(self) -> Dict[str, Any]:
+        """Run knowledge distillation training"""
+        print("🎓 Running distillation training...")
+        
+        if not self.synthetic_data:
+            raise ValueError("No synthetic data available for training")
+        
+        # Setup training
+        optimizer = torch.optim.AdamW(
+            self.student_model.parameters(), 
+            lr=self.config.distillation_lr
+        )
+        
+        loss_history = []
+        
+        # Training loop
+        for epoch in range(self.config.distillation_epochs):
+            epoch_loss = 0.0
+            num_batches = 0
+            
+            # Create batches
+            for i in range(0, len(self.synthetic_data), self.config.batch_size):
+                batch_data = self.synthetic_data[i:i + self.config.batch_size]
+                
+                # Prepare batch
+                input_ids = []
+                target_ids = []
+                
+                for sample in batch_data:
+                    if 'input_ids' in sample and 'target_ids' in sample:
+                        input_ids.append(sample['input_ids'])
+                        target_ids.append(sample['target_ids'])
+                
+                if not input_ids:
+                    continue
+                
+                # Pad sequences
+                max_len = min(max(len(seq) for seq in input_ids), self.config.max_sequence_length)
+                
+                padded_inputs = torch.zeros(len(input_ids), max_len, dtype=torch.long)
+                padded_targets = torch.zeros(len(target_ids), max_len, dtype=torch.long)
+                
+                for j, (inp, tgt) in enumerate(zip(input_ids, target_ids)):
+                    seq_len = min(len(inp), max_len)
+                    padded_inputs[j, :seq_len] = inp[:seq_len]
+                    tgt_len = min(len(tgt), max_len)
+                    padded_targets[j, :tgt_len] = tgt[:tgt_len]
+                
+                padded_inputs = padded_inputs.to(self.device)
+                padded_targets = padded_targets.to(self.device)
+                
+                # Forward pass
+                optimizer.zero_grad()
+                
+                try:
+                    # Student forward
+                    student_outputs = self.student_model(padded_inputs)
+                    
+                    # Teacher forward (for distillation)
+                    with torch.no_grad():
+                        teacher_outputs = self.teacher_model(padded_inputs)
+                    
+                    # Compute distillation loss
+                    loss = self._compute_distillation_loss(
+                        student_outputs.logits,
+                        teacher_outputs.logits,
+                        padded_targets
+                    )
+                    
+                    # Backward pass
+                    loss.backward()
+                    torch.nn.utils.clip_grad_norm_(self.student_model.parameters(), 1.0)
+                    optimizer.step()
+                    
+                    epoch_loss += loss.item()
+                    num_batches += 1
+                    
+                except Exception as e:
+                    print(f"    Warning: Batch failed: {e}")
+                    continue
+            
+            avg_loss = epoch_loss / max(num_batches, 1)
+            loss_history.append(avg_loss)
+            
+            print(f"  Epoch {epoch + 1}/{self.config.distillation_epochs}, Loss: {avg_loss:.4f}")
+        
+        return {
+            'loss_history': loss_history,
+            'final_loss': loss_history[-1] if loss_history else float('inf'),
+            'num_epochs': self.config.distillation_epochs,
+            'num_samples_trained': len(self.synthetic_data)
+        }
+    
+    def _compute_distillation_loss(self, student_logits, teacher_logits, target_ids):
+        """Compute knowledge distillation loss"""
+        # Distillation loss (KL divergence)
+        student_probs = torch.softmax(student_logits / self.config.temperature, dim=-1)
+        teacher_probs = torch.softmax(teacher_logits / self.config.temperature, dim=-1)
+        
+        distill_loss = torch.nn.functional.kl_div(
+            torch.log(student_probs + 1e-8),
+            teacher_probs,
+            reduction='batchmean'
+        ) * (self.config.temperature ** 2)
+        
+        # Task-specific loss (cross-entropy)
+        task_loss = torch.nn.functional.cross_entropy(
+            student_logits.view(-1, student_logits.size(-1)),
+            target_ids.view(-1),
+            ignore_index=self.tokenizer.pad_token_id if hasattr(self.tokenizer, 'pad_token_id') else 0
+        )
+        
+        # Combined loss
+        total_loss = self.config.alpha * distill_loss + (1 - self.config.alpha) * task_loss
+        
+        return total_loss
+    
+    def _evaluate_compressed_model(self) -> Dict[str, Any]:
+        """Evaluate compressed model performance"""
+        print("📊 Evaluating compressed model...")
+        
+        # Create evaluation dataset
+        eval_data = self.synthetic_data[-100:]  # Use last 100 samples for eval
+        
+        teacher_perplexity = self._calculate_perplexity(self.teacher_model, eval_data)
+        student_perplexity = self._calculate_perplexity(self.student_model, eval_data)
+        
+        # Calculate performance metrics
+        performance_retention = teacher_perplexity / max(student_perplexity, 1e-8)
+        
+        # Speed benchmark
+        speed_metrics = self._benchmark_inference_speed()
+        
+        results = {
+            'teacher_perplexity': teacher_perplexity,
+            'student_perplexity': student_perplexity,
+            'performance_retention': performance_retention,
+            'meets_threshold': performance_retention >= self.config.performance_threshold,
+            'speed_improvement': speed_metrics['speedup'],
+            'memory_reduction': self._calculate_memory_reduction(),
+            'inference_latency_ms': speed_metrics['student_latency_ms']
+        }
+        
+        print(f"  Performance retention: {performance_retention:.2%}")
+        print(f"  Speed improvement: {speed_metrics['speedup']:.1f}x")
+        print(f"  Memory reduction: {results['memory_reduction']:.1%}")
+        
+        return results
+    
+    def _calculate_perplexity(self, model, eval_data) -> float:
+        """Calculate model perplexity on evaluation data"""
+        model.eval()
+        total_loss = 0.0
+        total_tokens = 0
+        
+        with torch.no_grad():
+            for sample in eval_data[:20]:  # Limit for speed
+                if 'input_ids' not in sample:
+                    continue
+                
+                try:
+                    input_ids = sample['input_ids'].unsqueeze(0).to(self.device)
+                    
+                    if input_ids.shape[1] > 1:
+                        outputs = model(input_ids)
+                        
+                        # Calculate loss
+                        shift_logits = outputs.logits[..., :-1, :].contiguous()
+                        shift_labels = input_ids[..., 1:].contiguous()
+                        
+                        loss = torch.nn.functional.cross_entropy(
+                            shift_logits.view(-1, shift_logits.size(-1)),
+                            shift_labels.view(-1),
+                            reduction='sum'
+                        )
+                        
+                        total_loss += loss.item()
+                        total_tokens += shift_labels.numel()
+                        
+                except Exception:
+                    continue
+        
+        if total_tokens == 0:
+            return float('inf')
+        
+        avg_loss = total_loss / total_tokens
+        perplexity = torch.exp(torch.tensor(avg_loss)).item()
+        
+        return perplexity
+    
+    def _benchmark_inference_speed(self) -> Dict[str, float]:
+        """Benchmark inference speed of both models"""
+        test_input = torch.randint(0, 1000, (1, 50)).to(self.device)
+        
+        # Warm up
+        for _ in range(5):
+            with torch.no_grad():
+                _ = self.teacher_model(test_input)
+                _ = self.student_model(test_input)
+        
+        # Benchmark teacher
+        teacher_times = []
+        for _ in range(10):
+            start_time = time.time()
+            with torch.no_grad():
+                _ = self.teacher_model(test_input)
+            teacher_times.append(time.time() - start_time)
+        
+        # Benchmark student
+        student_times = []
+        for _ in range(10):
+            start_time = time.time()
+            with torch.no_grad():
+                _ = self.student_model(test_input)
+            student_times.append(time.time() - start_time)
+        
+        teacher_avg = sum(teacher_times) / len(teacher_times)
+        student_avg = sum(student_times) / len(student_times)
+        
+        return {
+            'teacher_latency_ms': teacher_avg * 1000,
+            'student_latency_ms': student_avg * 1000,
+            'speedup': teacher_avg / max(student_avg, 1e-8)
+        }
+    
+    def _calculate_memory_reduction(self) -> float:
+        """Calculate memory reduction percentage"""
+        teacher_params = sum(p.numel() for p in self.teacher_model.parameters())
+        student_params = sum(p.numel() for p in self.student_model.parameters())
+        
+        reduction = (teacher_params - student_params) / teacher_params
+        return reduction * 100
+    
+    def _optimize_for_production(self) -> nn.Module:
+        """Optimize model for production deployment"""
+        print("🔧 Optimizing for production...")
+        
+        # Set to eval mode
+        self.student_model.eval()
+        
+        # Optionally apply quantization
+        try:
+            # Dynamic quantization for CPU deployment
+            quantized_model = torch.quantization.quantize_dynamic(
+                self.student_model,
+                {torch.nn.Linear},
+                dtype=torch.qint8
+            )
+            print("  Applied dynamic quantization")
+            return quantized_model
+        except Exception as e:
+            print(f"  Quantization failed: {e}")
+            return self.student_model
+    
+    def _generate_deployment_artifacts(self) -> Dict[str, Any]:
+        """Generate artifacts needed for deployment"""
+        print("📦 Generating deployment artifacts...")
+        
+        artifacts = {
+            'model_config': {
+                'model_type': 'compressed_llm',
+                'compression_method': self.config.compression_method,
+                'compression_ratio': self.config.target_compression,
+                'architecture': {
+                    'num_layers': self.config.student_layers,
+                    'hidden_size': self.config.student_hidden_size,
+                    'num_attention_heads': self.config.student_attention_heads
+                }
+            },
+            'inference_config': {
+                'max_sequence_length': self.config.max_sequence_length,
+                'batch_size': self.config.batch_size,
+                'temperature': 0.7,
+                'top_p': 0.9
+            },
+            'performance_benchmarks': self.compression_metrics,
+            'deployment_instructions': {
+                'framework': 'pytorch',
+                'python_version': '>=3.8',
+                'required_packages': ['torch', 'transformers'],
+                'memory_requirements_mb': self._estimate_deployment_memory(),
+                'recommended_hardware': self._recommend_hardware()
+            }
+        }
+        
+        return artifacts
+    
+    def _estimate_deployment_memory(self) -> float:
+        """Estimate memory requirements for deployment"""
+        model_params = sum(p.numel() for p in self.student_model.parameters())
+        # Estimate: 4 bytes per parameter + overhead
+        memory_mb = (model_params * 4) / (1024 * 1024) * 1.5
+        return memory_mb
+    
+    def _recommend_hardware(self) -> str:
+        """Recommend hardware for deployment"""
+        memory_mb = self._estimate_deployment_memory()
+        
+        if memory_mb < 500:
+            return "CPU (2+ cores, 2GB+ RAM)"
+        elif memory_mb < 2000:
+            return "CPU (4+ cores, 4GB+ RAM) or GPU (4GB+ VRAM)"
+        else:
+            return "GPU (8GB+ VRAM) recommended"
+    
+    def _calculate_compression_ratio(self) -> float:
+        """Calculate actual compression ratio achieved"""
+        teacher_params = sum(p.numel() for p in self.teacher_model.parameters())
+        student_params = sum(p.numel() for p in self.student_model.parameters())
+        
+        return student_params / teacher_params
+    
+    def _calculate_avg_quality_score(self) -> float:
+        """Calculate average quality score of synthetic data"""
+        if not self.synthetic_data:
+            return 0.0
+        
+        scores = [sample.get('quality_score', 0.0) for sample in self.synthetic_data]
+        return sum(scores) / len(scores)
+    
+    def save_compressed_model(self, save_path: str):
+        """Save the compressed model and artifacts"""
+        print(f"💾 Saving compressed model to {save_path}")
+        
+        # Save model
+        torch.save({
+            'model_state_dict': self.student_model.state_dict(),
+            'config': self.config,
+            'compression_metrics': self.compression_metrics
+        }, f"{save_path}/compressed_model.pt")
+        
+        # Save deployment artifacts
+        artifacts = self._generate_deployment_artifacts()
+        with open(f"{save_path}/deployment_config.json", 'w') as f:
+            json.dump(artifacts, f, indent=2)
+        
+        print(f"✅ Model saved successfully")
+    
+    def load_compressed_model(self, load_path: str):
+        """Load a previously compressed model"""
+        print(f"📂 Loading compressed model from {load_path}")
+        
+        checkpoint = torch.load(f"{load_path}/compressed_model.pt", map_location=self.device)
+        
+        # Recreate student model architecture
+        self.config = checkpoint['config']
+        teacher_stats = self._analyze_teacher_model()
+        self.student_model = self._create_student_model(teacher_stats)
+        
+        # Load weights
+        self.student_model.load_state_dict(checkpoint['model_state_dict'])
+        self.compression_metrics = checkpoint.get('compression_metrics', {})
+        
+        print(f"✅ Model loaded successfully")
+        
 class SyntheticDistillationPipeline:
     """Complete pipeline for synthetic data generation and model distillation"""
     

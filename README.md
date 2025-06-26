@@ -482,33 +482,39 @@ class DomainSpecificRewardModel(RewardModel):
 ## 📁 Project Structure
 
 ```
-training_infra/
-├── __init__.py                    # Main exports
-├── config.py                     # Configuration classes
-├── trainer.py                    # Core training logic
-├── logger.py                     # Logging utilities
-├── callbacks.py                  # Callback system
-├── utils.py                      # Utility functions
-├── cli.py                        # Command line interface
-├── advanced.py                   # Integration module
+training_infra/  (or llm/)
+├── __init__.py                 # Main package exports
+├── config.py                   # Configuration classes
+├── trainer.py                  # Core training logic
+├── logger.py                   # Logging utilities
+├── callbacks.py                # Callback system
+├── utils.py                    # Utility functions
+├── cli.py                      # Command line interface
+├── advanced.py                 # Integration module
 ├── models/
-│   ├── llama.py                  # LLaMA architectures
-│   └── moe.py                    # Mixture of Experts
+│   ├── __init__.py
+│   ├── llama.py                # LLaMA architectures
+│   └── moe.py                  # Mixture of Experts
 ├── inference/
-│   ├── engine.py                 # Inference engine
-│   ├── sampling.py               # Sampling methods
-│   └── reward_guided.py          # Reward-guided inference
+│   ├── __init__.py
+│   ├── engine.py               # Inference engine
+│   ├── sampling.py             # Sampling methods
+│   └── reward_guided.py        # Reward-guided inference
 ├── rlhf/
-│   ├── reward_model.py           # Reward model training
-│   ├── ppo.py                    # PPO implementation
-│   ├── dpo.py                    # DPO implementation
-│   ├── grpo.py                   # GRPO implementation
-│   └── prm_orm_training.py       # PRM/ORM training
+│   ├── __init__.py
+│   ├── reward_model.py         # Reward model training
+│   ├── ppo.py                  # PPO implementation
+│   ├── dpo.py                  # DPO implementation
+│   ├── grpo.py                 # GRPO implementation
+│   └── prm_orm_training.py     # PRM/ORM training
 ├── data/
-│   └── synthetic.py              # Synthetic data generation
+│   ├── __init__.py
+│   └── synthetic.py            # Synthetic data generation
 ├── distillation/
-│   └── distillation.py           # Knowledge distillation
+│   ├── __init__.py
+│   └── distillation.py         # Knowledge distillation
 └── pipeline/
+    ├── __init__.py
     └── synthetic_distillation.py # Complete pipelines
 ```
 

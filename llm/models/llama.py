@@ -34,6 +34,7 @@ class LlamaConfig:
         if self.num_key_value_heads is None:
             self.num_key_value_heads = self.num_attention_heads
 
+
 class RMSNorm(nn.Module):
     """Root Mean Square Layer Normalization"""
     

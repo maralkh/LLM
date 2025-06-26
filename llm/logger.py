@@ -19,6 +19,14 @@ try:
 except ImportError:
     TENSORBOARD_AVAILABLE = False
 
+import logging
+
+def setup_logging():
+    logging.basicConfig(level=logging.INFO)
+
+def get_logger(name):
+    return logging.getLogger(name)
+    
 class TrainingLogger:
     """Production-ready training logger with multiple backends"""
     

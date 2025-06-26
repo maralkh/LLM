@@ -653,3 +653,80 @@ def create_factual_config() -> GenerationConfig:
         ),
         max_new_tokens=150
     )
+
+class BatchInferenceEngine(InferenceEngine):
+    """Optimized engine for batch inference"""
+    
+    def __init__(self, model, tokenizer=None, device=None, batch_size=8):
+        super().__init__(model, tokenizer, device)
+        self.default_batch_size = batch_size
+    
+    def generate_batch(self, prompts: List[str], config: GenerationConfig = None, **kwargs):
+        """Generate for multiple prompts efficiently"""
+        if config is None:
+            config = GenerationConfig()
+        
+        # Tokenize all prompts
+        input_ids_list = []
+        for prompt in prompts:
+            if self.tokenizer:
+                input_ids = self.tokenizer.encode(prompt, return_tensors='pt')
+            else:
+                input_ids = torch.tensor([prompt])  # Placeholder
+            input_ids_list.append(input_ids)
+        
+        # Batch process
+        results = []
+        for i in range(0, len(input_ids_list), self.default_batch_size):
+            batch = input_ids_list[i:i + self.default_batch_size]
+            
+            # Process batch
+            for input_ids in batch:
+                result = self.generate(input_ids, config)
+                results.append(result)
+        
+        return results
+
+class StreamingInferenceEngine(InferenceEngine):
+    """Engine for streaming text generation"""
+    
+    def __init__(self, model, tokenizer=None, device=None):
+        super().__init__(model, tokenizer, device)
+    
+    def generate_stream(self, prompt: str, config: GenerationConfig = None, **kwargs):
+        """Generate text with streaming output"""
+        if config is None:
+            config = GenerationConfig()
+        
+        # Enable streaming
+        config.stream = True
+        
+        if self.tokenizer:
+            input_ids = self.tokenizer.encode(prompt, return_tensors='pt')
+        else:
+            input_ids = torch.tensor([[1]])  # Placeholder
+        
+        # Generator for streaming
+        def token_generator():
+            result = self.generate(input_ids, config)
+            generated_tokens = result['generated_tokens']
+            
+            for i in range(generated_tokens.shape[1]):
+                token = generated_tokens[0, i]
+                if self.tokenizer:
+                    text = self.tokenizer.decode([token])
+                else:
+                    text = str(token.item())
+                yield text
+        
+        return token_generator()
+    
+    def stream_chat(self, messages: List[Dict[str, str]], config: GenerationConfig = None):
+        """Stream chat responses"""
+        # Format messages into prompt
+        prompt = ""
+        for msg in messages:
+            prompt += f"{msg['role']}: {msg['content']}\n"
+        prompt += "assistant: "
+        
+        return self.generate_stream(prompt, config)

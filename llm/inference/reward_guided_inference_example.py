@@ -14,17 +14,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Import our modules
-from training_infra.models.llama import create_llama_7b
-from training_infra.inference.reward_guided import (
+from llm.models.llama import create_llama_7b
+from llm.inference.reward_guided import (
     RewardGuidedConfig, 
     ProcessRewardModel, 
     OutcomeRewardModel,
     RewardGuidedInferenceEngine,
     create_reward_guided_engine
 )
-from training_infra.inference.engine import GenerationConfig
-from training_infra.inference.sampling import SamplingConfig
-from training_infra.rlhf.prm_orm_training import (
+from llm.inference.engine import GenerationConfig
+from llm.inference.sampling import SamplingConfig
+from llm.rlhf.prm_orm_training import (
     train_process_reward_model,
     train_outcome_reward_model,
     create_step_reward_data_from_math_problems,

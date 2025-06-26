@@ -350,6 +350,408 @@ class DPODataset(torch.utils.data.Dataset):
             'rejected': rejected
         }
 
+
+from dataclasses import dataclass
+from typing import Optional, Dict, Any, List
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+@dataclass
+class ReferenceFreeConfig:
+    """Configuration for Reference-Free DPO training"""
+    learning_rate: float = 1e-6
+    batch_size: int = 4
+    num_epochs: int = 3
+    beta: float = 0.1  # DPO temperature
+    max_length: int = 512
+    gradient_accumulation_steps: int = 1
+    warmup_steps: int = 100
+    weight_decay: float = 0.01
+    
+    # Reference-free specific
+    use_reference_free: bool = True
+    reference_free_alpha: float = 1.0  # Weight for reference-free term
+
+@dataclass
+class IPOConfig:
+    """Configuration for Identity Preference Optimization"""
+    learning_rate: float = 1e-6
+    batch_size: int = 4
+    num_epochs: int = 3
+    beta: float = 0.1
+    max_length: int = 512
+    gradient_accumulation_steps: int = 1
+    warmup_steps: int = 100
+    weight_decay: float = 0.01
+    
+    # IPO specific
+    tau: float = 0.1  # IPO regularization parameter
+    use_ipo_loss: bool = True
+
+@dataclass
+class CPOConfig:
+    """Configuration for Conservative Policy Optimization"""
+    learning_rate: float = 1e-6
+    batch_size: int = 4
+    num_epochs: int = 3
+    beta: float = 0.1
+    max_length: int = 512
+    gradient_accumulation_steps: int = 1
+    warmup_steps: int = 100
+    weight_decay: float = 0.01
+    
+    # CPO specific
+    penalty_coeff: float = 0.1  # Conservative penalty coefficient
+    constraint_threshold: float = 0.01  # KL constraint threshold
+    use_adaptive_penalty: bool = True
+
+@dataclass
+class IterativeDPOConfig:
+    """Configuration for Iterative DPO training"""
+    learning_rate: float = 1e-6
+    batch_size: int = 4
+    num_epochs: int = 3
+    beta: float = 0.1
+    max_length: int = 512
+    gradient_accumulation_steps: int = 1
+    warmup_steps: int = 100
+    weight_decay: float = 0.01
+    
+    # Iterative DPO specific
+    num_iterations: int = 3  # Number of DPO iterations
+    preference_update_freq: int = 1000  # How often to update preferences
+    online_sampling: bool = True  # Sample new preferences online
+    preference_buffer_size: int = 10000
+
+# class ReferenceFreeTrainer:
+#     """Reference-Free DPO Trainer"""
+    
+#     def __init__(self, model, tokenizer, config: ReferenceFreeConfig):
+#         self.model = model
+#         self.tokenizer = tokenizer
+#         self.config = config
+        
+#         # No reference model needed
+#         self.optimizer = torch.optim.AdamW(
+#             model.parameters(), 
+#             lr=config.learning_rate,
+#             weight_decay=config.weight_decay
+#         )
+    
+#     def compute_reference_free_loss(self, chosen_logps, rejected_logps):
+#         """Compute reference-free DPO loss"""
+#         # Standard DPO loss without reference model
+#         pi_logratios = chosen_logps - rejected_logps
+        
+#         # Reference-free modification
+#         ref_free_term = self.config.reference_free_alpha * (chosen_logps + rejected_logps)
+        
+#         loss = -F.logsigmoid(self.config.beta * pi_logratios - ref_free_term).mean()
+#         return loss
+    
+#     def train_step(self, batch):
+#         """Single training step"""
+#         chosen_ids = batch['chosen_input_ids']
+#         rejected_ids = batch['rejected_input_ids']
+        
+#         # Forward pass
+#         chosen_outputs = self.model(chosen_ids)
+#         rejected_outputs = self.model(rejected_ids)
+        
+#         # Compute log probabilities
+#         chosen_logps = self._get_log_probs(chosen_outputs.logits, chosen_ids)
+#         rejected_logps = self._get_log_probs(rejected_outputs.logits, rejected_ids)
+        
+#         # Compute loss
+#         loss = self.compute_reference_free_loss(chosen_logps, rejected_logps)
+        
+#         return loss
+    
+#     def _get_log_probs(self, logits, input_ids):
+#         """Get log probabilities for sequences"""
+#         log_probs = F.log_softmax(logits, dim=-1)
+#         return log_probs.gather(-1, input_ids.unsqueeze(-1)).squeeze(-1).sum(-1)
+
+# class IPOTrainer:
+#     """Identity Preference Optimization Trainer"""
+    
+#     def __init__(self, model, tokenizer, config: IPOConfig):
+#         self.model = model
+#         self.tokenizer = tokenizer
+#         self.config = config
+        
+#         self.optimizer = torch.optim.AdamW(
+#             model.parameters(),
+#             lr=config.learning_rate,
+#             weight_decay=config.weight_decay
+#         )
+    
+#     def compute_ipo_loss(self, chosen_logps, rejected_logps):
+#         """Compute IPO loss"""
+#         # IPO loss: (log(chosen) - log(rejected) - 1/beta)^2
+#         logit_diff = chosen_logps - rejected_logps
+#         target = 1.0 / self.config.beta
+        
+#         loss = ((logit_diff - target) ** 2).mean()
+        
+#         # Add regularization
+#         reg_term = self.config.tau * (chosen_logps ** 2 + rejected_logps ** 2).mean()
+        
+#         return loss + reg_term
+    
+#     def train_step(self, batch):
+#         """Single training step"""
+#         chosen_ids = batch['chosen_input_ids']
+#         rejected_ids = batch['rejected_input_ids']
+        
+#         # Forward pass
+#         chosen_outputs = self.model(chosen_ids)
+#         rejected_outputs = self.model(rejected_ids)
+        
+#         # Compute log probabilities
+#         chosen_logps = self._get_log_probs(chosen_outputs.logits, chosen_ids)
+#         rejected_logps = self._get_log_probs(rejected_outputs.logits, rejected_ids)
+        
+#         # Compute IPO loss
+#         loss = self.compute_ipo_loss(chosen_logps, rejected_logps)
+        
+#         return loss
+    
+#     def _get_log_probs(self, logits, input_ids):
+#         """Get log probabilities for sequences"""
+#         log_probs = F.log_softmax(logits, dim=-1)
+#         return log_probs.gather(-1, input_ids.unsqueeze(-1)).squeeze(-1).sum(-1)
+
+# class CPOTrainer:
+#     """Conservative Policy Optimization Trainer"""
+    
+#     def __init__(self, model, reference_model, tokenizer, config: CPOConfig):
+#         self.model = model
+#         self.reference_model = reference_model
+#         self.tokenizer = tokenizer
+#         self.config = config
+        
+#         self.optimizer = torch.optim.AdamW(
+#             model.parameters(),
+#             lr=config.learning_rate,
+#             weight_decay=config.weight_decay
+#         )
+        
+#         # Adaptive penalty coefficient
+#         self.penalty_coeff = config.penalty_coeff
+    
+#     def compute_cpo_loss(self, chosen_logps, rejected_logps, ref_chosen_logps, ref_rejected_logps):
+#         """Compute CPO loss with conservative constraint"""
+#         # Standard DPO loss
+#         pi_logratios = chosen_logps - rejected_logps
+#         ref_logratios = ref_chosen_logps - ref_rejected_logps
+        
+#         dpo_loss = -F.logsigmoid(self.config.beta * (pi_logratios - ref_logratios)).mean()
+        
+#         # Conservative penalty (KL constraint)
+#         kl_div_chosen = F.kl_div(chosen_logps, ref_chosen_logps, reduction='batchmean')
+#         kl_div_rejected = F.kl_div(rejected_logps, ref_rejected_logps, reduction='batchmean')
+        
+#         kl_penalty = kl_div_chosen + kl_div_rejected
+        
+#         # Adaptive penalty
+#         if self.config.use_adaptive_penalty:
+#             if kl_penalty > self.config.constraint_threshold:
+#                 self.penalty_coeff *= 1.1  # Increase penalty
+#             else:
+#                 self.penalty_coeff *= 0.99  # Decrease penalty
+        
+#         total_loss = dpo_loss + self.penalty_coeff * kl_penalty
+        
+#         return total_loss, dpo_loss, kl_penalty
+    
+#     def train_step(self, batch):
+#         """Single training step"""
+#         chosen_ids = batch['chosen_input_ids']
+#         rejected_ids = batch['rejected_input_ids']
+        
+#         # Forward pass through both models
+#         chosen_outputs = self.model(chosen_ids)
+#         rejected_outputs = self.model(rejected_ids)
+        
+#         with torch.no_grad():
+#             ref_chosen_outputs = self.reference_model(chosen_ids)
+#             ref_rejected_outputs = self.reference_model(rejected_ids)
+        
+#         # Compute log probabilities
+#         chosen_logps = self._get_log_probs(chosen_outputs.logits, chosen_ids)
+#         rejected_logps = self._get_log_probs(rejected_outputs.logits, rejected_ids)
+#         ref_chosen_logps = self._get_log_probs(ref_chosen_outputs.logits, chosen_ids)
+#         ref_rejected_logps = self._get_log_probs(ref_rejected_outputs.logits, rejected_ids)
+        
+#         # Compute CPO loss
+#         total_loss, dpo_loss, kl_penalty = self.compute_cpo_loss(
+#             chosen_logps, rejected_logps, ref_chosen_logps, ref_rejected_logps
+#         )
+        
+#         return total_loss, {"dpo_loss": dpo_loss, "kl_penalty": kl_penalty}
+    
+#     def _get_log_probs(self, logits, input_ids):
+#         """Get log probabilities for sequences"""
+#         log_probs = F.log_softmax(logits, dim=-1)
+#         return log_probs.gather(-1, input_ids.unsqueeze(-1)).squeeze(-1).sum(-1)
+
+# class IterativeDPOTrainer:
+#     """Iterative DPO Trainer with online preference collection"""
+    
+#     def __init__(self, model, tokenizer, config: IterativeDPOConfig):
+#         self.model = model
+#         self.tokenizer = tokenizer
+#         self.config = config
+        
+#         self.optimizer = torch.optim.AdamW(
+#             model.parameters(),
+#             lr=config.learning_rate,
+#             weight_decay=config.weight_decay
+#         )
+        
+#         # Preference buffer for online learning
+#         self.preference_buffer = []
+#         self.current_iteration = 0
+    
+#     def collect_online_preferences(self, prompts: List[str], reward_model=None):
+#         """Collect preferences online using current model"""
+#         new_preferences = []
+        
+#         for prompt in prompts:
+#             # Generate multiple responses
+#             responses = self._generate_responses(prompt, num_responses=4)
+            
+#             # Score responses
+#             if reward_model:
+#                 scores = self._score_responses(responses, reward_model)
+#             else:
+#                 # Use simple heuristics if no reward model
+#                 scores = [len(resp) for resp in responses]  # Placeholder
+            
+#             # Create preference pairs
+#             best_idx = max(range(len(scores)), key=lambda i: scores[i])
+#             worst_idx = min(range(len(scores)), key=lambda i: scores[i])
+            
+#             if best_idx != worst_idx:
+#                 new_preferences.append({
+#                     'prompt': prompt,
+#                     'chosen': responses[best_idx],
+#                     'rejected': responses[worst_idx]
+#                 })
+        
+#         # Add to buffer
+#         self.preference_buffer.extend(new_preferences)
+        
+#         # Keep buffer size manageable
+#         if len(self.preference_buffer) > self.config.preference_buffer_size:
+#             self.preference_buffer = self.preference_buffer[-self.config.preference_buffer_size:]
+        
+#         return new_preferences
+    
+#     def _generate_responses(self, prompt: str, num_responses: int = 4):
+#         """Generate multiple responses for a prompt"""
+#         responses = []
+        
+#         input_ids = self.tokenizer.encode(prompt, return_tensors='pt')
+        
+#         for _ in range(num_responses):
+#             with torch.no_grad():
+#                 outputs = self.model.generate(
+#                     input_ids,
+#                     max_length=input_ids.shape[1] + 50,
+#                     do_sample=True,
+#                     temperature=0.8,
+#                     pad_token_id=self.tokenizer.eos_token_id
+#                 )
+            
+#             response = self.tokenizer.decode(outputs[0][input_ids.shape[1]:], skip_special_tokens=True)
+#             responses.append(response)
+        
+#         return responses
+    
+#     def _score_responses(self, responses: List[str], reward_model):
+#         """Score responses using reward model"""
+#         scores = []
+        
+#         for response in responses:
+#             # Simplified scoring
+#             with torch.no_grad():
+#                 input_ids = self.tokenizer.encode(response, return_tensors='pt')
+#                 score = reward_model(input_ids).item()
+#                 scores.append(score)
+        
+#         return scores
+    
+#     def train_iteration(self, prompts: List[str], reward_model=None):
+#         """Single iteration of iterative DPO training"""
+#         print(f"Starting DPO iteration {self.current_iteration + 1}")
+        
+#         # Collect new preferences
+#         if self.config.online_sampling:
+#             new_prefs = self.collect_online_preferences(prompts, reward_model)
+#             print(f"Collected {len(new_prefs)} new preference pairs")
+        
+#         # Train on preference buffer
+#         if self.preference_buffer:
+#             self._train_on_preferences()
+        
+#         self.current_iteration += 1
+    
+#     def _train_on_preferences(self):
+#         """Train on collected preferences"""
+#         # Convert preferences to training batches
+#         for i in range(0, len(self.preference_buffer), self.config.batch_size):
+#             batch_prefs = self.preference_buffer[i:i + self.config.batch_size]
+            
+#             # Create batch
+#             batch = self._create_batch_from_preferences(batch_prefs)
+            
+#             # Training step
+#             loss = self.train_step(batch)
+            
+#             # Backward pass
+#             loss.backward()
+#             self.optimizer.step()
+#             self.optimizer.zero_grad()
+    
+#     def _create_batch_from_preferences(self, preferences):
+#         """Create training batch from preferences"""
+#         chosen_texts = [p['chosen'] for p in preferences]
+#         rejected_texts = [p['rejected'] for p in preferences]
+        
+#         chosen_encodings = self.tokenizer(chosen_texts, return_tensors='pt', padding=True, truncation=True)
+#         rejected_encodings = self.tokenizer(rejected_texts, return_tensors='pt', padding=True, truncation=True)
+        
+#         return {
+#             'chosen_input_ids': chosen_encodings['input_ids'],
+#             'rejected_input_ids': rejected_encodings['input_ids']
+#         }
+    
+#     def train_step(self, batch):
+#         """Single training step"""
+#         chosen_ids = batch['chosen_input_ids']
+#         rejected_ids = batch['rejected_input_ids']
+        
+#         # Forward pass
+#         chosen_outputs = self.model(chosen_ids)
+#         rejected_outputs = self.model(rejected_ids)
+        
+#         # Compute log probabilities
+#         chosen_logps = self._get_log_probs(chosen_outputs.logits, chosen_ids)
+#         rejected_logps = self._get_log_probs(rejected_outputs.logits, rejected_ids)
+        
+#         # Standard DPO loss
+#         pi_logratios = chosen_logps - rejected_logps
+#         loss = -F.logsigmoid(self.config.beta * pi_logratios).mean()
+        
+#         return loss
+    
+#     def _get_log_probs(self, logits, input_ids):
+#         """Get log probabilities for sequences"""
+#         log_probs = F.log_softmax(logits, dim=-1)
+#         return log_probs.gather(-1, input_ids.unsqueeze(-1)).squeeze(-1).sum(-1)
 # Advanced DPO variants
 class ReferenceFreeTrainer(DPOTrainer):
     """Reference-free DPO trainer"""

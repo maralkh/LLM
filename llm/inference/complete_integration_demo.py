@@ -12,7 +12,7 @@ from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 
 # Import all components
-from file_based_training_inference import (
+from online_learning.file_based_training_inference import (
     FileBasedTrainingSystem, FileBasedConfig, 
     create_dummy_models, create_sample_data_files
 )

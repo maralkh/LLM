@@ -425,3 +425,127 @@ class MoELlamaLayer(nn.Module):
             outputs += attention_outputs[1:]
         
         return outputs, aux_losses
+
+class LlamaMoEModel(nn.Module):
+    """LLaMA model with Mixture of Experts layers"""
+    
+    def __init__(self, config, moe_layers=None, num_experts=8):
+        super().__init__()
+        self.config = config
+        self.moe_layers = moe_layers or []
+        self.num_experts = num_experts
+        
+        # Create MoE config
+        self.moe_config = create_moe_config(
+            num_experts=num_experts,
+            hidden_size=getattr(config, 'hidden_size', 4096),
+            intermediate_size=getattr(config, 'intermediate_size', 11008)
+        )
+        
+        # Initialize layers (placeholder)
+        self.layers = nn.ModuleList()
+        
+        # Add layers with MoE where specified
+        for layer_idx in range(getattr(config, 'num_layers', 32)):
+            if layer_idx in self.moe_layers:
+                # MoE layer
+                from .llama import LlamaAttention
+                attention = LlamaAttention(config)
+                layer = MoELlamaLayer(attention, self.moe_config)
+            else:
+                # Standard layer
+                from .llama import LlamaDecoderLayer
+                layer = LlamaDecoderLayer(config)
+            
+            self.layers.append(layer)
+    
+    def forward(self, input_ids, attention_mask=None, **kwargs):
+        """Forward pass with MoE layers"""
+        # Get embeddings
+        hidden_states = input_ids  # Placeholder
+        
+        total_aux_loss = 0.0
+        
+        # Process through layers
+        for layer_idx, layer in enumerate(self.layers):
+            if layer_idx in self.moe_layers:
+                # MoE layer
+                layer_outputs, aux_losses = layer(hidden_states, attention_mask=attention_mask)
+                hidden_states = layer_outputs[0]
+                
+                # Accumulate auxiliary losses
+                for loss_value in aux_losses.values():
+                    total_aux_loss += loss_value
+            else:
+                # Standard layer
+                layer_outputs = layer(hidden_states, attention_mask=attention_mask)
+                hidden_states = layer_outputs[0]
+        
+        return hidden_states, {'aux_loss': total_aux_loss}
+
+def create_llama_moe_7b(moe_layers=None, num_experts=8):
+    """Create LLaMA 7B with MoE layers"""
+    from .llama import LlamaConfig
+    
+    if moe_layers is None:
+        moe_layers = [4, 8, 12, 16, 20, 24, 28]  # Default MoE layers
+    
+    config = LlamaConfig(
+        vocab_size=32000,
+        hidden_size=4096,
+        intermediate_size=11008,
+        num_hidden_layers=32,
+        num_attention_heads=32,
+        max_position_embeddings=2048,
+        rms_norm_eps=1e-6
+    )
+    
+    return LlamaMoEModel(config, moe_layers=moe_layers, num_experts=num_experts)
+
+def create_switch_transformer():
+    """Create Switch Transformer model"""
+    from .llama import LlamaConfig
+    
+    config = LlamaConfig(
+        vocab_size=32000,
+        hidden_size=4096,
+        intermediate_size=11008,
+        num_hidden_layers=32,
+        num_attention_heads=32
+    )
+    
+    moe_config = create_moe_config(
+        num_experts=128,  # Switch uses many experts
+        num_experts_per_tok=1,  # Top-1 routing
+        hidden_size=4096,
+        router_aux_loss_coef=0.01
+    )
+    
+    model = LlamaMoEModel(config, moe_layers=list(range(32)), num_experts=128)
+    return model
+
+def create_glam_model():
+    """Create GLaM-style model"""
+    from .llama import LlamaConfig
+    
+    config = LlamaConfig(
+        vocab_size=32000,
+        hidden_size=8192,  # Larger for GLaM
+        intermediate_size=22016,
+        num_hidden_layers=64,  # Deeper
+        num_attention_heads=64
+    )
+    
+    moe_config = create_moe_config(
+        num_experts=64,
+        num_experts_per_tok=2,
+        hidden_size=8192,
+        intermediate_size=22016,
+        router_aux_loss_coef=0.01
+    )
+    
+    # Every other layer is MoE in GLaM
+    moe_layers = list(range(1, 64, 2))
+    
+    model = LlamaMoEModel(config, moe_layers=moe_layers, num_experts=64)
+    return model
