@@ -6,42 +6,74 @@ This module provides LLaMA model implementations with support for distributed
 training, including all variants from original LLaMA to LLaMA 3 and Tiny models.
 """
 
-from .llama import (
-    LlamaConfig,
-    RMSNorm,
-    RotaryEmbedding,
-    LlamaAttention,
-    LlamaMLP,
-    LlamaDecoderLayer,
-    LlamaModel,
-    LlamaForCausalLM,
-    
-    # Model creation functions
-    create_llama_7b_parallel,
-    create_llama_13b_parallel,
-    create_llama_30b_parallel,
-    create_llama_65b_parallel,
-    create_llama2_7b_parallel,
-    create_code_llama_7b_parallel,
-    
-    # LLaMA 3 models
-    create_llama3_8b_parallel,
-    create_llama3_8b_instruct_parallel,
-    create_llama3_70b_parallel,
-    create_llama3_70b_instruct_parallel,
-    create_llama3_405b_parallel,
-    
-    # Tiny LLaMA 3 models
-    create_tiny_llama3_150m,
-    create_tiny_llama3_50m,
-    
-    # Utilities
-    optimize_model_for_training,
-    estimate_model_memory,
-    apply_rotary_pos_emb,
-    rotate_half
-)
+# Core LLaMA imports - these should always be available
+try:
+    from .llama import (
+        LlamaConfig,
+        RMSNorm,
+        RotaryEmbedding,
+        LlamaAttention,
+        LlamaMLP,
+        LlamaDecoderLayer,
+        LlamaModel,
+        LlamaForCausalLM,
+        
+        # Utilities
+        apply_rotary_pos_emb,
+        rotate_half
+    )
+    _LLAMA_CORE_AVAILABLE = True
+except ImportError:
+    _LLAMA_CORE_AVAILABLE = False
 
+# Model creation functions - might not all be implemented
+try:
+    from .llama import (
+        create_llama_7b_parallel,
+        create_llama_13b_parallel,
+        create_llama_30b_parallel,
+        create_llama_65b_parallel,
+        create_llama2_7b_parallel,
+        create_code_llama_7b_parallel,
+    )
+    _LLAMA_CREATORS_AVAILABLE = True
+except ImportError:
+    _LLAMA_CREATORS_AVAILABLE = False
+
+# LLaMA 3 models - might be newer implementations
+try:
+    from .llama import (
+        create_llama3_8b_parallel,
+        create_llama3_8b_instruct_parallel,
+        create_llama3_70b_parallel,
+        create_llama3_70b_instruct_parallel,
+        create_llama3_405b_parallel,
+    )
+    _LLAMA3_AVAILABLE = True
+except ImportError:
+    _LLAMA3_AVAILABLE = False
+
+# Tiny LLaMA 3 models - might be development only
+try:
+    from .llama import (
+        create_tiny_llama3_150m,
+        create_tiny_llama3_50m,
+    )
+    _TINY_LLAMA_AVAILABLE = True
+except ImportError:
+    _TINY_LLAMA_AVAILABLE = False
+
+# Utility functions - might have dependencies
+try:
+    from .llama import (
+        optimize_model_for_training,
+        estimate_model_memory,
+    )
+    _LLAMA_UTILS_AVAILABLE = True
+except ImportError:
+    _LLAMA_UTILS_AVAILABLE = False
+
+# MoE imports - completely optional
 try:
     from .moe import (
         MoEConfig,
@@ -57,45 +89,69 @@ try:
 except ImportError:
     _MOE_AVAILABLE = False
 
-# Core exports - always available
-__all__ = [
-    # Configuration
-    "LlamaConfig",
-    
-    # Model components
-    "RMSNorm",
-    "RotaryEmbedding", 
-    "LlamaAttention",
-    "LlamaMLP",
-    "LlamaDecoderLayer",
-    "LlamaModel",
-    "LlamaForCausalLM",
-    
-    # Model creation functions
-    "create_llama_7b_parallel",
-    "create_llama_13b_parallel",
-    "create_llama_30b_parallel", 
-    "create_llama_65b_parallel",
-    "create_llama2_7b_parallel",
-    "create_code_llama_7b_parallel",
-    
-    # LLaMA 3 models
-    "create_llama3_8b_parallel",
-    "create_llama3_8b_instruct_parallel",
-    "create_llama3_70b_parallel",
-    "create_llama3_70b_instruct_parallel", 
-    "create_llama3_405b_parallel",
-    
-    # Tiny LLaMA 3 models
-    "create_tiny_llama3_150m",
-    "create_tiny_llama3_50m",
-    
-    # Utilities
-    "optimize_model_for_training",
-    "estimate_model_memory",
-    "apply_rotary_pos_emb",
-    "rotate_half",
-]
+# Advanced MoE - even more optional
+try:
+    from .moe import (
+        SwitchTransformerMoE,
+        GLaMRouter,
+        LlamaMoEModel,
+        create_llama_moe_7b,
+        create_switch_transformer,
+        create_glam_model
+    )
+    _ADVANCED_MOE_AVAILABLE = True
+except ImportError:
+    _ADVANCED_MOE_AVAILABLE = False
+
+# Core exports - only what's definitely available
+__all__ = []
+
+# Add core LLaMA exports if available
+if _LLAMA_CORE_AVAILABLE:
+    __all__.extend([
+        "LlamaConfig",
+        "RMSNorm",
+        "RotaryEmbedding", 
+        "LlamaAttention",
+        "LlamaMLP",
+        "LlamaDecoderLayer",
+        "LlamaModel",
+        "LlamaForCausalLM",
+        "apply_rotary_pos_emb",
+        "rotate_half",
+    ])
+
+# Add model creators if available
+if _LLAMA_CREATORS_AVAILABLE:
+    __all__.extend([
+        "create_llama_7b_parallel",
+        "create_llama_13b_parallel",
+        "create_llama_30b_parallel", 
+        "create_llama_65b_parallel",
+        "create_llama2_7b_parallel",
+        "create_code_llama_7b_parallel",
+    ])
+
+if _LLAMA3_AVAILABLE:
+    __all__.extend([
+        "create_llama3_8b_parallel",
+        "create_llama3_8b_instruct_parallel",
+        "create_llama3_70b_parallel",
+        "create_llama3_70b_instruct_parallel", 
+        "create_llama3_405b_parallel",
+    ])
+
+if _TINY_LLAMA_AVAILABLE:
+    __all__.extend([
+        "create_tiny_llama3_150m",
+        "create_tiny_llama3_50m",
+    ])
+
+if _LLAMA_UTILS_AVAILABLE:
+    __all__.extend([
+        "optimize_model_for_training",
+        "estimate_model_memory",
+    ])
 
 # Conditional exports for MoE
 if _MOE_AVAILABLE:
@@ -110,6 +166,16 @@ if _MOE_AVAILABLE:
         "TopKGating"
     ])
 
+if _ADVANCED_MOE_AVAILABLE:
+    __all__.extend([
+        "SwitchTransformerMoE",
+        "GLaMRouter",
+        "LlamaMoEModel",
+        "create_llama_moe_7b",
+        "create_switch_transformer",
+        "create_glam_model"
+    ])
+
 # Module info
 __version__ = "1.0.0"
 __description__ = "Model architectures and implementations for LLaMA training"
@@ -119,98 +185,58 @@ def print_models_info():
     print("🧠 LLaMA Models Module")
     print("=" * 35)
     
-    print("Available model variants:")
-    variants = {
-        "LLaMA 1": ["7B"],
-        "LLaMA 2": ["7B", "13B", "30B", "65B", "70B"], 
-        "LLaMA 3": ["8B", "8B-Instruct", "70B", "70B-Instruct", "405B"],
-        "Tiny LLaMA 3": ["50M", "150M"],
-        "Code LLaMA": ["7B"]
-    }
+    print("Available components:")
+    print(f"  • Core LLaMA: {'✅' if _LLAMA_CORE_AVAILABLE else '❌'}")
+    print(f"  • Model Creators: {'✅' if _LLAMA_CREATORS_AVAILABLE else '❌'}")
+    print(f"  • LLaMA 3: {'✅' if _LLAMA3_AVAILABLE else '❌'}")
+    print(f"  • Tiny LLaMA: {'✅' if _TINY_LLAMA_AVAILABLE else '❌'}")
+    print(f"  • Utilities: {'✅' if _LLAMA_UTILS_AVAILABLE else '❌'}")
+    print(f"  • MoE Support: {'✅' if _MOE_AVAILABLE else '❌'}")
+    print(f"  • Advanced MoE: {'✅' if _ADVANCED_MOE_AVAILABLE else '❌'}")
     
-    for family, sizes in variants.items():
-        print(f"  • {family}: {', '.join(sizes)}")
-    
-    print(f"\nModel components:")
-    components = ["LlamaConfig", "RMSNorm", "RotaryEmbedding", "LlamaAttention", "LlamaMLP"]
-    for component in components:
-        print(f"  • {component}")
-    
-    print(f"\nOptional features:")
-    print(f"  • MoE (Mixture of Experts): {'✅' if _MOE_AVAILABLE else '❌'}")
+    if _LLAMA_CORE_AVAILABLE:
+        print("\nAvailable model variants:")
+        variants = []
+        if _LLAMA_CREATORS_AVAILABLE:
+            variants.extend(["LLaMA 1: 7B", "LLaMA 2: 7B, 13B, 30B, 65B", "Code LLaMA: 7B"])
+        if _LLAMA3_AVAILABLE:
+            variants.extend(["LLaMA 3: 8B, 8B-Instruct, 70B, 70B-Instruct, 405B"])
+        if _TINY_LLAMA_AVAILABLE:
+            variants.append("Tiny LLaMA 3: 50M, 150M")
+        
+        for variant in variants:
+            print(f"  • {variant}")
 
 def list_model_creators():
     """List all available model creation functions"""
     print("🏗️  Model Creation Functions:")
     print("=" * 40)
     
+    if not any([_LLAMA_CREATORS_AVAILABLE, _LLAMA3_AVAILABLE, _TINY_LLAMA_AVAILABLE]):
+        print("❌ No model creators available")
+        return
+    
     creators = [name for name in __all__ if name.startswith("create_")]
     
-    # Group by family
-    families = {
-        "LLaMA 1": [],
-        "LLaMA 2": [],
-        "LLaMA 3": [],
-        "Tiny LLaMA 3": [],
-        "Code LLaMA": []
-    }
-    
-    for creator in creators:
-        if "llama1" in creator:
-            families["LLaMA 1"].append(creator)
-        elif "llama2" in creator:
-            families["LLaMA 2"].append(creator)
-        elif "llama3" in creator and "tiny" not in creator:
-            families["LLaMA 3"].append(creator)
-        elif "tiny" in creator:
-            families["Tiny LLaMA 3"].append(creator)
-        elif "code" in creator:
-            families["Code LLaMA"].append(creator)
-    
-    for family, funcs in families.items():
-        if funcs:
-            print(f"\n{family}:")
-            for func in funcs:
-                print(f"  • {func}")
+    if creators:
+        for creator in sorted(creators):
+            print(f"  • {creator}")
+    else:
+        print("❌ No creators found in exports")
 
 def get_model_info(model_variant: str) -> dict:
     """Get information about a specific model variant"""
     
+    # Safe model specs - only include what we're confident about
     model_specs = {
-        # LLaMA 1
-        "llama1_7b": {
-            "parameters": "7B",
-            "vocab_size": 32000,
-            "context_length": 2048,
-            "architecture": "Original LLaMA",
-            "min_gpus": 1,
-            "recommended_memory_gb": 16
-        },
-        
         # LLaMA 2  
         "llama2_7b": {
             "parameters": "7B", 
             "vocab_size": 32000,
             "context_length": 4096,
-            "architecture": "LLaMA 2 with extended context",
+            "architecture": "LLaMA 2",
             "min_gpus": 1,
             "recommended_memory_gb": 18
-        },
-        "llama2_13b": {
-            "parameters": "13B",
-            "vocab_size": 32000, 
-            "context_length": 4096,
-            "architecture": "LLaMA 2",
-            "min_gpus": 2,
-            "recommended_memory_gb": 32
-        },
-        "llama2_70b": {
-            "parameters": "70B",
-            "vocab_size": 32000,
-            "context_length": 4096, 
-            "architecture": "LLaMA 2 with GQA",
-            "min_gpus": 8,
-            "recommended_memory_gb": 200
         },
         
         # LLaMA 3
@@ -218,25 +244,9 @@ def get_model_info(model_variant: str) -> dict:
             "parameters": "8B",
             "vocab_size": 128256,
             "context_length": 8192,
-            "architecture": "LLaMA 3 enhanced",
+            "architecture": "LLaMA 3",
             "min_gpus": 1, 
             "recommended_memory_gb": 20
-        },
-        "llama3_70b": {
-            "parameters": "70B",
-            "vocab_size": 128256,
-            "context_length": 8192,
-            "architecture": "LLaMA 3 with improved GQA", 
-            "min_gpus": 8,
-            "recommended_memory_gb": 220
-        },
-        "llama3_405b": {
-            "parameters": "405B",
-            "vocab_size": 128256,
-            "context_length": 8192,
-            "architecture": "LLaMA 3 mega model",
-            "min_gpus": 32,
-            "recommended_memory_gb": 1000
         },
         
         # Tiny LLaMA 3
@@ -244,7 +254,7 @@ def get_model_info(model_variant: str) -> dict:
             "parameters": "50M",
             "vocab_size": 128256,
             "context_length": 2048,
-            "architecture": "Tiny LLaMA 3 for development",
+            "architecture": "Tiny LLaMA 3",
             "min_gpus": 0,  # Can run on CPU
             "recommended_memory_gb": 2
         },
@@ -252,20 +262,10 @@ def get_model_info(model_variant: str) -> dict:
             "parameters": "150M", 
             "vocab_size": 128256,
             "context_length": 8192,
-            "architecture": "Tiny LLaMA 3 for development",
+            "architecture": "Tiny LLaMA 3",
             "min_gpus": 1,
             "recommended_memory_gb": 4
         },
-        
-        # Code LLaMA
-        "code_llama_7b": {
-            "parameters": "7B",
-            "vocab_size": 32016,
-            "context_length": 16384,
-            "architecture": "Code-specialized LLaMA",
-            "min_gpus": 1,
-            "recommended_memory_gb": 20
-        }
     }
     
     if model_variant not in model_specs:
@@ -284,7 +284,7 @@ def recommend_model_for_hardware(
     recommendations = []
     
     # Development models (always good for testing)
-    if use_case == "development":
+    if use_case == "development" and _TINY_LLAMA_AVAILABLE:
         recommendations.extend([
             ("tiny_llama3_50m", "Ultra-fast development and testing"),
             ("tiny_llama3_150m", "Development with full architecture")
@@ -292,74 +292,52 @@ def recommend_model_for_hardware(
     
     # Production recommendations based on hardware
     if gpu_count == 0 or gpu_memory_gb < 4:
-        recommendations.append(("tiny_llama3_50m", "CPU or very low memory"))
+        if _TINY_LLAMA_AVAILABLE:
+            recommendations.append(("tiny_llama3_50m", "CPU or very low memory"))
     
     elif gpu_memory_gb >= 4 and gpu_memory_gb < 16:
-        recommendations.append(("tiny_llama3_150m", "Low memory GPU"))
+        if _TINY_LLAMA_AVAILABLE:
+            recommendations.append(("tiny_llama3_150m", "Low memory GPU"))
     
     elif gpu_memory_gb >= 16 and gpu_count >= 1:
-        recommendations.extend([
-            ("llama3_8b", "Good balance of capability and efficiency"),
-            ("llama2_7b", "Proven model with good performance")
-        ])
-        
-        if use_case == "inference" and gpu_memory_gb >= 20:
-            recommendations.append(("llama3_8b_instruct", "Best for chat/instruction following"))
+        if _LLAMA3_AVAILABLE:
+            recommendations.append(("llama3_8b", "Good balance of capability and efficiency"))
+        if _LLAMA_CREATORS_AVAILABLE:
+            recommendations.append(("llama2_7b", "Proven model with good performance"))
     
-    elif gpu_memory_gb >= 40 and gpu_count >= 8:
-        recommendations.extend([
-            ("llama3_70b", "High capability model"),
-            ("llama3_70b_instruct", "Best instruction following")
-        ])
-    
-    elif gpu_memory_gb >= 80 and gpu_count >= 32:
-        recommendations.append(("llama3_405b", "State-of-the-art mega model"))
+    if not recommendations:
+        recommendations.append(("manual_setup", "Please check available model creators"))
     
     return recommendations
 
-def create_model_comparison_table():
-    """Create a comparison table of all models"""
-    print("📊 LLaMA Model Comparison")
-    print("=" * 80)
-    print(f"{'Model':<20} {'Parameters':<12} {'Context':<8} {'Vocab':<8} {'Min GPUs':<9} {'Memory (GB)'}")
-    print("-" * 80)
-    
-    models = [
-        "tiny_llama3_50m", "tiny_llama3_150m", "llama2_7b", "llama3_8b", 
-        "llama2_13b", "llama2_70b", "llama3_70b", "llama3_405b", "code_llama_7b"
-    ]
-    
-    for model in models:
-        try:
-            info = get_model_info(model)
-            print(f"{model:<20} {info['parameters']:<12} {info['context_length']:<8} "
-                  f"{info['vocab_size']:<8} {info['min_gpus']:<9} {info['recommended_memory_gb']}")
-        except:
-            continue
-
 def quick_model_create(model_variant: str, **kwargs):
-    """Quick model creation with sensible defaults"""
+    """Quick model creation with error handling"""
     
-    creators = {
-        "tiny_llama3_50m": create_tiny_llama3_50m,
-        "tiny_llama3_150m": create_tiny_llama3_150m,
-        "llama1_7b": create_llama_7b_parallel,
-        "llama2_7b": create_llama2_7b_parallel,
-        "llama2_13b": create_llama_13b_parallel,
-        "llama2_30b": create_llama_30b_parallel,
-        "llama2_65b": create_llama_65b_parallel,
-        "llama2_70b": create_llama_65b_parallel,  # Using 65b as proxy
-        "llama3_8b": create_llama3_8b_parallel,
-        "llama3_8b_instruct": create_llama3_8b_instruct_parallel,
-        "llama3_70b": create_llama3_70b_parallel,
-        "llama3_70b_instruct": create_llama3_70b_instruct_parallel,
-        "llama3_405b": create_llama3_405b_parallel,
-        "code_llama_7b": create_code_llama_7b_parallel,
-    }
+    # Map variants to creators (only include what we know exists)
+    creators = {}
+    
+    if _TINY_LLAMA_AVAILABLE:
+        creators.update({
+            "tiny_llama3_50m": create_tiny_llama3_50m,
+            "tiny_llama3_150m": create_tiny_llama3_150m,
+        })
+    
+    if _LLAMA_CREATORS_AVAILABLE:
+        creators.update({
+            "llama2_7b": create_llama2_7b_parallel,
+            "llama_7b": create_llama_7b_parallel,
+            "llama_13b": create_llama_13b_parallel,
+        })
+    
+    if _LLAMA3_AVAILABLE:
+        creators.update({
+            "llama3_8b": create_llama3_8b_parallel,
+            "llama3_8b_instruct": create_llama3_8b_instruct_parallel,
+        })
     
     if model_variant not in creators:
-        available = ", ".join(creators.keys())
-        raise ValueError(f"Unknown model variant: {model_variant}. Available: {available}")
+        available = ", ".join(creators.keys()) if creators else "None available"
+        raise ValueError(f"Model {model_variant} not available. Available: {available}")
     
     # Set sensible defaults
     defaults = {
@@ -371,197 +349,128 @@ def quick_model_create(model_variant: str, **kwargs):
     # Override defaults with kwargs
     defaults.update(kwargs)
     
-    return creators[model_variant](**defaults)
+    try:
+        return creators[model_variant](**defaults)
+    except Exception as e:
+        raise RuntimeError(f"Failed to create {model_variant}: {e}")
 
-# Add convenience functions to exports
-__all__.extend([
-    "print_models_info",
-    "list_model_creators",
-    "get_model_info", 
-    "recommend_model_for_hardware",
-    "create_model_comparison_table",
-    "quick_model_create"
-])
-
-# Model configuration presets
-MODEL_PRESETS = {
-    "development": {
-        "model": "tiny_llama3_150m",
-        "description": "Fast development and testing",
-        "config": {
-            "tensor_parallel_size": 1,
-            "use_flash_attention": True,
-            "use_checkpointing": False
-        }
-    },
-    "production_small": {
-        "model": "llama3_8b", 
-        "description": "Production ready, efficient",
-        "config": {
-            "tensor_parallel_size": 1,
-            "use_flash_attention": True,
-            "use_checkpointing": True
-        }
-    },
-    "production_large": {
-        "model": "llama3_70b",
-        "description": "High capability production model",
-        "config": {
-            "tensor_parallel_size": 8,
-            "use_flash_attention": True,
-            "use_checkpointing": True
-        }
-    },
-    "chat_optimized": {
-        "model": "llama3_8b_instruct",
-        "description": "Optimized for conversation",
-        "config": {
-            "tensor_parallel_size": 1,
-            "use_flash_attention": True,
-            "use_checkpointing": False
-        }
-    },
-    "code_specialized": {
-        "model": "code_llama_7b",
-        "description": "Specialized for code generation",
-        "config": {
-            "tensor_parallel_size": 1,
-            "use_flash_attention": True,
-            "use_checkpointing": True
-        }
-    }
-}
-
-def create_model_from_preset(preset_name: str, **overrides):
-    """Create model from preset configuration"""
-    
-    if preset_name not in MODEL_PRESETS:
-        available = ", ".join(MODEL_PRESETS.keys())
-        raise ValueError(f"Unknown preset: {preset_name}. Available: {available}")
-    
-    preset = MODEL_PRESETS[preset_name]
-    config = preset["config"].copy()
-    config.update(overrides)
-    
-    return quick_model_create(preset["model"], **config)
-
-def list_model_presets():
-    """List available model presets"""
-    print("📋 Model Presets:")
-    print("=" * 40)
-    
-    for name, preset in MODEL_PRESETS.items():
-        print(f"  • {name}: {preset['description']}")
-        print(f"    Model: {preset['model']}")
-
-# Add preset functions to exports
-__all__.extend([
-    "create_model_from_preset",
-    "list_model_presets",
-    "MODEL_PRESETS"
-])
-
-# Model utilities
+# Model utilities with error handling
 class ModelUtils:
     """Utility functions for model operations"""
     
     @staticmethod
     def count_parameters(model) -> dict:
         """Count model parameters"""
-        total_params = sum(p.numel() for p in model.parameters())
-        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        
-        return {
-            "total_parameters": total_params,
-            "trainable_parameters": trainable_params,
-            "frozen_parameters": total_params - trainable_params,
-            "total_parameters_M": total_params / 1_000_000,
-            "trainable_parameters_M": trainable_params / 1_000_000
-        }
+        try:
+            total_params = sum(p.numel() for p in model.parameters())
+            trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+            
+            return {
+                "total_parameters": total_params,
+                "trainable_parameters": trainable_params,
+                "frozen_parameters": total_params - trainable_params,
+                "total_parameters_M": total_params / 1_000_000,
+                "trainable_parameters_M": trainable_params / 1_000_000
+            }
+        except Exception as e:
+            return {"error": str(e)}
     
     @staticmethod
     def get_model_size_mb(model) -> float:
         """Get model size in MB"""
-        total_size = 0
-        for param in model.parameters():
-            total_size += param.numel() * param.element_size()
-        return total_size / 1024 / 1024
+        try:
+            total_size = 0
+            for param in model.parameters():
+                total_size += param.numel() * param.element_size()
+            return total_size / 1024 / 1024
+        except:
+            return 0.0
     
     @staticmethod
     def print_model_summary(model, model_name: str = "Model"):
         """Print detailed model summary"""
-        param_info = ModelUtils.count_parameters(model)
-        size_mb = ModelUtils.get_model_size_mb(model)
-        
-        print(f"🧠 {model_name} Summary")
-        print("=" * 40)
-        print(f"Total Parameters: {param_info['total_parameters']:,} ({param_info['total_parameters_M']:.1f}M)")
-        print(f"Trainable Parameters: {param_info['trainable_parameters']:,} ({param_info['trainable_parameters_M']:.1f}M)")
-        print(f"Model Size: {size_mb:.1f} MB")
-        
-        if hasattr(model, 'config'):
-            config = model.config
-            print(f"\nArchitecture:")
-            print(f"  • Vocab Size: {config.vocab_size:,}")
-            print(f"  • Hidden Size: {config.hidden_size}")
-            print(f"  • Layers: {config.num_hidden_layers}")
-            print(f"  • Attention Heads: {config.num_attention_heads}")
-            if hasattr(config, 'num_key_value_heads') and config.num_key_value_heads:
-                print(f"  • KV Heads: {config.num_key_value_heads} (GQA)")
-            print(f"  • Max Position: {config.max_position_embeddings}")
+        try:
+            param_info = ModelUtils.count_parameters(model)
+            size_mb = ModelUtils.get_model_size_mb(model)
+            
+            print(f"🧠 {model_name} Summary")
+            print("=" * 40)
+            
+            if "error" not in param_info:
+                print(f"Total Parameters: {param_info['total_parameters']:,} ({param_info['total_parameters_M']:.1f}M)")
+                print(f"Trainable Parameters: {param_info['trainable_parameters']:,} ({param_info['trainable_parameters_M']:.1f}M)")
+                print(f"Model Size: {size_mb:.1f} MB")
+            else:
+                print(f"Error getting model info: {param_info['error']}")
+            
+            if hasattr(model, 'config'):
+                config = model.config
+                print(f"\nArchitecture:")
+                print(f"  • Vocab Size: {getattr(config, 'vocab_size', 'Unknown'):,}")
+                print(f"  • Hidden Size: {getattr(config, 'hidden_size', 'Unknown')}")
+                print(f"  • Layers: {getattr(config, 'num_hidden_layers', 'Unknown')}")
+                print(f"  • Attention Heads: {getattr(config, 'num_attention_heads', 'Unknown')}")
+                
+        except Exception as e:
+            print(f"❌ Error printing model summary: {e}")
+
+# Safe function creation with availability checks
+def create_model_from_preset(preset_name: str, **overrides):
+    """Create model from preset configuration (if creators available)"""
     
-    @staticmethod
-    def compare_models(*models, names=None) -> dict:
-        """Compare multiple models"""
-        if names is None:
-            names = [f"Model_{i+1}" for i in range(len(models))]
-        
-        comparison = {}
-        for model, name in zip(models, names):
-            comparison[name] = ModelUtils.count_parameters(model)
-            comparison[name]["size_mb"] = ModelUtils.get_model_size_mb(model)
-        
-        return comparison
-
-# Add ModelUtils to exports
-__all__.append("ModelUtils")
-
-# Architecture validation
-def validate_model_architecture(model_variant: str) -> dict:
-    """Validate model architecture and requirements"""
+    presets = {}
     
-    try:
-        info = get_model_info(model_variant)
-        
-        validation = {
-            "valid": True,
-            "warnings": [],
-            "requirements": info,
-            "recommendations": []
+    if _TINY_LLAMA_AVAILABLE:
+        presets["development"] = {
+            "model": "tiny_llama3_150m",
+            "description": "Fast development and testing",
         }
-        
-        # Check memory requirements
-        if info["recommended_memory_gb"] > 80:
-            validation["warnings"].append("High memory requirements")
-            validation["recommendations"].append("Consider using tensor parallelism")
-        
-        # Check GPU requirements
-        if info["min_gpus"] > 1:
-            validation["recommendations"].append(f"Requires at least {info['min_gpus']} GPUs")
-        
-        # Check for development models
-        if "tiny" in model_variant:
-            validation["recommendations"].append("Perfect for development and testing")
-        
-        return validation
-        
-    except ValueError as e:
-        return {
-            "valid": False,
-            "error": str(e),
-            "warnings": ["Invalid model variant"],
-            "recommendations": ["Check available models with list_model_creators()"]
+    
+    if _LLAMA3_AVAILABLE:
+        presets["production_small"] = {
+            "model": "llama3_8b", 
+            "description": "Production ready, efficient",
         }
+    
+    if not presets:
+        raise RuntimeError("No model creators available for presets")
+    
+    if preset_name not in presets:
+        available = ", ".join(presets.keys())
+        raise ValueError(f"Unknown preset: {preset_name}. Available: {available}")
+    
+    preset = presets[preset_name]
+    return quick_model_create(preset["model"], **overrides)
 
-# Add validation function to exports
-__all__.append("validate_model_architecture")
+# Add safe convenience functions to exports
+__all__.extend([
+    "print_models_info",
+    "list_model_creators",
+    "get_model_info", 
+    "recommend_model_for_hardware",
+    "ModelUtils"
+])
+
+# Only add functions that have their dependencies available
+if any([_LLAMA_CREATORS_AVAILABLE, _LLAMA3_AVAILABLE, _TINY_LLAMA_AVAILABLE]):
+    __all__.extend([
+        "quick_model_create",
+        "create_model_from_preset"
+    ])
+
+# Status check function
+def check_models_status():
+    """Check which model components are available"""
+    status = {
+        "core_llama": _LLAMA_CORE_AVAILABLE,
+        "model_creators": _LLAMA_CREATORS_AVAILABLE,
+        "llama3": _LLAMA3_AVAILABLE,
+        "tiny_llama": _TINY_LLAMA_AVAILABLE,
+        "utilities": _LLAMA_UTILS_AVAILABLE,
+        "moe": _MOE_AVAILABLE,
+        "advanced_moe": _ADVANCED_MOE_AVAILABLE,
+    }
+    
+    return status
+
+__all__.append("check_models_status")

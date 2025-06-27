@@ -1,299 +1,238 @@
-# training_infra/distributed/__init__.py
+# training_infra/__init__.py
 """
-Distributed training components for LLaMA models.
-
-This module provides distributed training capabilities including tensor parallelism,
-pipeline parallelism, data parallelism, and ZeRO optimizer support.
+Unified Training Infrastructure for LLaMA models
+Merges parallelism and distributed components
 """
 
-from .config import (
-    DistributedConfig,
-    TensorParallelConfig,
-    PipelineParallelConfig,
-    DataParallelConfig,
-    ZeROConfig,
-    MixedPrecisionConfig,
-    CommunicationConfig,
-    MemoryOptimizationConfig,
-    ConfigurationFactory,
-    AutoConfigurator
-)
+# Import from distributed_init (our fixed initialization)
+try:
+    from .distributed_init import (
+        setup_distributed_training,
+        cleanup_distributed,
+        get_world_size,
+        get_rank,
+        get_local_rank,
+        get_tensor_parallel_rank,
+        get_pipeline_parallel_rank,
+        get_data_parallel_rank,
+        is_main_process,
+        barrier,
+        print_distributed_info,
+        get_distributed_state,
+        ParallelismConfig,
+        DistributedContext,
+        health_check
+    )
+    _DISTRIBUTED_INIT_AVAILABLE = True
+except ImportError:
+    _DISTRIBUTED_INIT_AVAILABLE = False
 
-from .trainer import (
-    DistributedTrainer,
-    LlamaDistributedTrainer,
-    PipelineDistributedTrainer,
-    AdaptiveDistributedTrainer,
-    DistributedPerformanceTracker,
-    MemoryOptimizer,
-    BatchSizeAdapter,
-    create_distributed_trainer
-)
+# Import tensor parallelism
+try:
+    from .tensor_parallel import (
+        TensorParallelLinear,
+        TensorParallelEmbedding,
+        TensorParallelConfig,
+        TensorParallelMultiHeadAttention,
+        ColumnParallelLinear,
+        RowParallelLinear,
+        convert_model_to_tensor_parallel,
+        all_gather_tensor_parallel,
+        reduce_scatter_tensor_parallel,
+        tensor_parallel_all_reduce
+    )
+    _TENSOR_PARALLEL_AVAILABLE = True
+except ImportError:
+    _TENSOR_PARALLEL_AVAILABLE = False
 
-from .microbatch_scheduler import (
-    MicrobatchScheduler,
-    ScheduleStep,
-    PipelineSchedule,
-    GPipeSchedule,
-    OneForwardOneBackwardSchedule,
-    ChimeraSchedule,
-    InterleavedSchedule,
-    MicrobatchMetrics,
-    BatchSplitter
-)
+# Import pipeline parallelism
+try:
+    from .pipeline_parallel import (
+        PipelineConfig,
+        PipelineStage,
+        PipelineParallelModel,
+        AsyncPipelineParallelModel,
+        PipelineParallelTrainer,
+        MicroBatchScheduler,
+        create_pipeline_stages,
+        setup_pipeline_parallel_model
+    )
+    _PIPELINE_PARALLEL_AVAILABLE = True
+except ImportError:
+    _PIPELINE_PARALLEL_AVAILABLE = False
 
-# Core exports
-__all__ = [
-    # Configuration classes
-    "DistributedConfig",
-    "TensorParallelConfig", 
-    "PipelineParallelConfig",
-    "DataParallelConfig",
-    "ZeROConfig",
-    "MixedPrecisionConfig",
-    "CommunicationConfig",
-    "MemoryOptimizationConfig",
-    
-    # Configuration factories
-    "ConfigurationFactory",
-    "AutoConfigurator",
-    
-    # Trainer classes
-    "DistributedTrainer",
-    "LlamaDistributedTrainer",
-    "PipelineDistributedTrainer", 
-    "AdaptiveDistributedTrainer",
-    "DistributedPerformanceTracker",
-    "MemoryOptimizer",
-    "BatchSizeAdapter",
-    "create_distributed_trainer",
-    
-    # Pipeline and microbatch components
-    "MicrobatchScheduler",
-    "ScheduleStep",
-    "PipelineSchedule",
-    "GPipeSchedule", 
-    "OneForwardOneBackwardSchedule",
-    "ChimeraSchedule",
-    "InterleavedSchedule",
-    "MicrobatchMetrics",
-    "BatchSplitter",
-]
+# Import distributed config
+try:
+    from .distributed_config import (
+        DistributedConfig,
+        TensorParallelConfig as DistTensorParallelConfig,
+        PipelineParallelConfig,
+        DataParallelConfig,
+        ZeROConfig,
+        MixedPrecisionConfig,
+        CommunicationConfig,
+        MemoryOptimizationConfig,
+        ConfigurationFactory,
+        AutoConfigurator
+    )
+    _DISTRIBUTED_CONFIG_AVAILABLE = True
+except ImportError:
+    _DISTRIBUTED_CONFIG_AVAILABLE = False
+
+# Import microbatch scheduler
+try:
+    from .microbatch_scheduler import (
+        MicrobatchScheduler,
+        ScheduleStep,
+        PipelineSchedule,
+        GPipeSchedule,
+        OneForwardOneBackwardSchedule,
+        ChimeraSchedule,
+        InterleavedSchedule,
+        MicrobatchMetrics,
+        BatchSplitter
+    )
+    _MICROBATCH_SCHEDULER_AVAILABLE = True
+except ImportError:
+    _MICROBATCH_SCHEDULER_AVAILABLE = False
+
+# Import distributed trainers
+try:
+    from .distributed_trainer import (
+        DistributedTrainer,
+        LlamaDistributedTrainer,
+        PipelineDistributedTrainer,
+        AdaptiveDistributedTrainer,
+        create_distributed_trainer,
+        DistributedPerformanceTracker,
+        MemoryOptimizer,
+        BatchSizeAdapter
+    )
+    _DISTRIBUTED_TRAINER_AVAILABLE = True
+except ImportError:
+    _DISTRIBUTED_TRAINER_AVAILABLE = False
 
 # Module info
-__version__ = "1.0.0" 
-__description__ = "Distributed training components for LLaMA models"
+__version__ = "1.0.0"
+__description__ = "Unified training infrastructure for LLaMA models"
 
-def print_distributed_info():
-    """Print information about distributed module"""
-    print("🌐 LLaMA Distributed Training Module")
-    print("=" * 45)
-    
-    print("Parallelism strategies:")
-    print("  • Tensor Parallelism - Split model layers across GPUs")
-    print("  • Pipeline Parallelism - Split model into stages")
-    print("  • Data Parallelism - Replicate model across GPUs")
-    print("  • ZeRO Optimizer - Memory-efficient optimizer")
-    
-    print("\nConfiguration classes:")
-    configs = [name for name in __all__ if name.endswith("Config")]
-    for config in configs:
-        print(f"  • {config}")
-    
-    print(f"\nTrainer classes:")
-    trainers = [name for name in __all__ if "Trainer" in name]
-    for trainer in trainers:
-        print(f"  • {trainer}")
-    
-    print(f"\nPipeline components:")
-    pipeline = [name for name in __all__ if any(x in name for x in ["Schedule", "Microbatch", "Splitter"])]
-    for component in pipeline:
-        print(f"  • {component}")
+# Core exports
+__all__ = []
 
-def create_simple_distributed_config(
-    strategy: str = "data_parallel",
-    num_gpus: int = 1,
-    **kwargs
-) -> DistributedConfig:
-    """Create a simple distributed configuration"""
-    
-    if strategy == "data_parallel":
-        return ConfigurationFactory.create_data_parallel_config(num_gpus)
-    elif strategy == "tensor_parallel":
-        return ConfigurationFactory.create_tensor_parallel_config(num_gpus)
-    elif strategy == "pipeline":
-        microbatch_size = kwargs.get("microbatch_size", 2)
-        schedule = kwargs.get("schedule", "1f1b")
-        return ConfigurationFactory.create_pipeline_parallel_config(
-            num_gpus, microbatch_size, schedule
-        )
-    elif strategy == "hybrid":
-        tp_size = kwargs.get("tensor_parallel_size", 2)
-        pp_size = kwargs.get("pipeline_parallel_size", 2)
-        dp_size = kwargs.get("data_parallel_size", num_gpus // (tp_size * pp_size))
-        return ConfigurationFactory.create_hybrid_parallel_config(
-            tp_size, pp_size, dp_size
-        )
-    else:
-        raise ValueError(f"Unknown strategy: {strategy}")
+# Add available components to exports
+if _DISTRIBUTED_INIT_AVAILABLE:
+    __all__.extend([
+        "setup_distributed_training", "cleanup_distributed",
+        "get_world_size", "get_rank", "get_local_rank",
+        "get_tensor_parallel_rank", "get_pipeline_parallel_rank", "get_data_parallel_rank",
+        "is_main_process", "barrier", "print_distributed_info", "get_distributed_state",
+        "ParallelismConfig", "DistributedContext", "health_check"
+    ])
 
-def estimate_distributed_memory(
-    model_size: str,
-    batch_size: int = 8,
-    sequence_length: int = 2048,
-    config: DistributedConfig = None,
-    **kwargs
-) -> dict:
-    """Estimate memory requirements for distributed training"""
-    
-    if config is None:
-        config = AutoConfigurator.auto_configure(model_size, 1)
-    
-    return AutoConfigurator.estimate_memory_requirements(
-        model_size=model_size,
-        batch_size=batch_size,
-        sequence_length=sequence_length,
-        config=config
-    )
+if _TENSOR_PARALLEL_AVAILABLE:
+    __all__.extend([
+        "TensorParallelLinear", "TensorParallelEmbedding", "TensorParallelConfig",
+        "TensorParallelMultiHeadAttention", "ColumnParallelLinear", "RowParallelLinear",
+        "convert_model_to_tensor_parallel", "all_gather_tensor_parallel",
+        "reduce_scatter_tensor_parallel", "tensor_parallel_all_reduce"
+    ])
 
-def create_microbatch_scheduler(
-    num_microbatches: int,
-    microbatch_size: int,
-    num_pipeline_stages: int,
-    schedule_type: str = "1f1b",
-    **kwargs
-) -> MicrobatchScheduler:
-    """Create a microbatch scheduler for pipeline parallelism"""
-    
-    return MicrobatchScheduler(
-        num_microbatches=num_microbatches,
-        microbatch_size=microbatch_size,
-        num_pipeline_stages=num_pipeline_stages,
-        current_stage=kwargs.get("current_stage", 0),
-        schedule_type=schedule_type,
-        virtual_stages=kwargs.get("virtual_stages", None),
-        enable_profiling=kwargs.get("enable_profiling", True)
-    )
+if _PIPELINE_PARALLEL_AVAILABLE:
+    __all__.extend([
+        "PipelineConfig", "PipelineStage", "PipelineParallelModel",
+        "AsyncPipelineParallelModel", "PipelineParallelTrainer", "MicroBatchScheduler",
+        "create_pipeline_stages", "setup_pipeline_parallel_model"
+    ])
 
-# Add convenience functions to exports
-__all__.extend([
-    "create_simple_distributed_config",
-    "estimate_distributed_memory",
-    "create_microbatch_scheduler",
-    "print_distributed_info"
-])
+if _DISTRIBUTED_CONFIG_AVAILABLE:
+    __all__.extend([
+        "DistributedConfig", "DistTensorParallelConfig", "PipelineParallelConfig",
+        "DataParallelConfig", "ZeROConfig", "MixedPrecisionConfig",
+        "CommunicationConfig", "MemoryOptimizationConfig",
+        "ConfigurationFactory", "AutoConfigurator"
+    ])
 
-# Distributed training utilities
-class DistributedUtils:
-    """Utility class for distributed training operations"""
+if _MICROBATCH_SCHEDULER_AVAILABLE:
+    __all__.extend([
+        "MicrobatchScheduler", "ScheduleStep", "PipelineSchedule",
+        "GPipeSchedule", "OneForwardOneBackwardSchedule", "ChimeraSchedule",
+        "InterleavedSchedule", "MicrobatchMetrics", "BatchSplitter"
+    ])
+
+if _DISTRIBUTED_TRAINER_AVAILABLE:
+    __all__.extend([
+        "DistributedTrainer", "LlamaDistributedTrainer", "PipelineDistributedTrainer",
+        "AdaptiveDistributedTrainer", "create_distributed_trainer",
+        "DistributedPerformanceTracker", "MemoryOptimizer", "BatchSizeAdapter"
+    ])
+
+def print_module_info():
+    """Print information about available components"""
+    print("🚀 Training Infrastructure Module")
+    print("=" * 40)
+    print("Available components:")
+    print(f"  • Distributed Init: {'✅' if _DISTRIBUTED_INIT_AVAILABLE else '❌'}")
+    print(f"  • Tensor Parallel: {'✅' if _TENSOR_PARALLEL_AVAILABLE else '❌'}")
+    print(f"  • Pipeline Parallel: {'✅' if _PIPELINE_PARALLEL_AVAILABLE else '❌'}")
+    print(f"  • Distributed Config: {'✅' if _DISTRIBUTED_CONFIG_AVAILABLE else '❌'}")
+    print(f"  • Microbatch Scheduler: {'✅' if _MICROBATCH_SCHEDULER_AVAILABLE else '❌'}")
+    print(f"  • Distributed Trainer: {'✅' if _DISTRIBUTED_TRAINER_AVAILABLE else '❌'}")
     
-    @staticmethod
-    def get_world_size() -> int:
-        """Get distributed world size"""
+    if _DISTRIBUTED_INIT_AVAILABLE:
         try:
-            import torch.distributed as dist
-            if dist.is_initialized():
-                return dist.get_world_size()
+            state = get_distributed_state()
+            if state["is_initialized"]:
+                print(f"\nDistributed Status: ✅ Initialized")
+                print(f"World Size: {state['world_size']}")
+            else:
+                print(f"\nDistributed Status: ⚠️ Not initialized")
         except:
             pass
-        return 1
+
+__all__.append("print_module_info")
+
+
+# Quick setup function
+def quick_setup(model_size="7B", strategy="auto", **kwargs):
+    """Quick setup for distributed training"""
     
-    @staticmethod
-    def get_rank() -> int:
-        """Get distributed rank"""
-        try:
-            import torch.distributed as dist
-            if dist.is_initialized():
-                return dist.get_rank()
-        except:
-            pass
-        return 0
+    if not _DISTRIBUTED_INIT_AVAILABLE:
+        print("❌ Distributed initialization not available")
+        return False
     
-    @staticmethod
-    def is_main_process() -> bool:
-        """Check if this is the main process"""
-        return DistributedUtils.get_rank() == 0
+    if not _DISTRIBUTED_CONFIG_AVAILABLE:
+        print("❌ Distributed configuration not available")
+        return False
     
-    @staticmethod
-    def print_on_main(message: str):
-        """Print message only on main process"""
-        if DistributedUtils.is_main_process():
-            print(message)
-    
-    @staticmethod
-    def get_device_info() -> dict:
-        """Get device information"""
-        info = {
-            "world_size": DistributedUtils.get_world_size(),
-            "rank": DistributedUtils.get_rank(),
-            "cuda_available": False,
-            "gpu_count": 0,
-            "gpu_memory_gb": []
-        }
+    try:
+        # Auto-detect GPU count
+        import torch
+        num_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 1
         
-        try:
-            import torch
-            info["cuda_available"] = torch.cuda.is_available()
-            if info["cuda_available"]:
-                info["gpu_count"] = torch.cuda.device_count()
-                for i in range(info["gpu_count"]):
-                    props = torch.cuda.get_device_properties(i)
-                    memory_gb = props.total_memory / 1024**3
-                    info["gpu_memory_gb"].append(memory_gb)
-        except:
-            pass
+        # Create config
+        if strategy == "auto":
+            config = AutoConfigurator.auto_configure(model_size, num_gpus)
+        else:
+            config = getattr(ConfigurationFactory, f'create_{strategy}_config')(num_gpus)
         
-        return info
+        # Setup distributed
+        success = setup_distributed_training(
+            tensor_parallel_size=config.tensor_parallel.tensor_parallel_size,
+            pipeline_parallel_size=config.pipeline_parallel.pipeline_parallel_size,
+            data_parallel_size=config.data_parallel.data_parallel_size,
+            **kwargs
+        )
+        
+        if success:
+            print("✅ Quick setup completed!")
+            print_distributed_info()
+            return True
+        else:
+            print("❌ Quick setup failed")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Quick setup error: {e}")
+        return False
 
-# Add utility class to exports
-__all__.append("DistributedUtils")
-
-# Configuration presets for common scenarios
-PRESET_CONFIGS = {
-    "single_gpu": lambda: ConfigurationFactory.create_single_gpu_config(),
-    "dual_gpu_dp": lambda: ConfigurationFactory.create_data_parallel_config(2),
-    "quad_gpu_dp": lambda: ConfigurationFactory.create_data_parallel_config(4),
-    "dual_gpu_tp": lambda: ConfigurationFactory.create_tensor_parallel_config(2),
-    "quad_gpu_tp": lambda: ConfigurationFactory.create_tensor_parallel_config(4),
-    "octo_gpu_hybrid": lambda: ConfigurationFactory.create_hybrid_parallel_config(2, 2, 2),
-    "tiny_model": lambda: ConfigurationFactory.create_tiny_llama3_config(1),
-    "llama3_8b_optimal": lambda: ConfigurationFactory.create_llama3_8b_config(4),
-    "llama3_70b_optimal": lambda: ConfigurationFactory.create_llama3_70b_config(8),
-    "llama3_405b_optimal": lambda: ConfigurationFactory.create_llama3_405b_config(64),
-}
-
-def get_preset_config(preset_name: str) -> DistributedConfig:
-    """Get a preset distributed configuration"""
-    if preset_name not in PRESET_CONFIGS:
-        available = ", ".join(PRESET_CONFIGS.keys())
-        raise ValueError(f"Unknown preset: {preset_name}. Available: {available}")
-    
-    return PRESET_CONFIGS[preset_name]()
-
-def list_preset_configs():
-    """List available preset configurations"""
-    print("📋 Available Distributed Configuration Presets:")
-    print("=" * 50)
-    
-    descriptions = {
-        "single_gpu": "Single GPU training",
-        "dual_gpu_dp": "2 GPU data parallel", 
-        "quad_gpu_dp": "4 GPU data parallel",
-        "dual_gpu_tp": "2 GPU tensor parallel",
-        "quad_gpu_tp": "4 GPU tensor parallel", 
-        "octo_gpu_hybrid": "8 GPU hybrid (2x2x2)",
-        "tiny_model": "Tiny model configuration",
-        "llama3_8b_optimal": "Optimal for LLaMA 3 8B",
-        "llama3_70b_optimal": "Optimal for LLaMA 3 70B",
-        "llama3_405b_optimal": "Optimal for LLaMA 3 405B",
-    }
-    
-    for preset, desc in descriptions.items():
-        print(f"  • {preset}: {desc}")
-
-# Add preset functions to exports
-__all__.extend([
-    "get_preset_config",
-    "list_preset_configs", 
-    "PRESET_CONFIGS"
-])
+__all__.append("quick_setup")
