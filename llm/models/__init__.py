@@ -2,18 +2,27 @@
 Model architectures including LLaMA and Mixture of Experts implementations.
 """
 
-from .llama import (
-    LlamaModel,
+# Model components
+from .models.llama import (
     LlamaConfig,
-    LlamaAttention,
-    LlamaDecoderLayer,
-    RMSNorm,
-    create_llama_7b,
-    create_llama_13b,
-    create_llama_30b,
-    create_llama_65b,
-    create_llama2_7b,
-    create_code_llama_7b
+    LlamaForCausalLM,
+    create_llama_7b_parallel,
+    create_llama_13b_parallel,
+    create_llama_30b_parallel,
+    create_llama_65b_parallel,
+    create_llama2_7b_parallel,
+    create_code_llama_7b_parallel,
+    # LLaMA 3 models
+    create_llama3_8b_parallel,
+    create_llama3_8b_instruct_parallel,
+    create_llama3_70b_parallel,
+    create_llama3_70b_instruct_parallel,
+    create_llama3_405b_parallel,
+    # Tiny LLaMA 3 for development
+    create_tiny_llama3_150m,
+    create_tiny_llama3_50m,
+    optimize_model_for_training,
+    estimate_model_memory
 )
 
 from .moe import (
