@@ -144,7 +144,7 @@ class LLaMAVariants:
             intermediate_size=2048,
             num_hidden_layers=12,
             num_attention_heads=12,
-            num_key_value_heads=12,
+            num_key_value_heads=3,
             max_position_embeddings=2048,
             torch_dtype=precision,
             model_type="tiny_llama"

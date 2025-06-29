@@ -6,42 +6,59 @@ This module provides LLaMA model implementations with support for distributed
 training, including all variants from original LLaMA to LLaMA 3 and Tiny models.
 """
 
-from .llama import (
-    LlamaConfig,
-    RMSNorm,
-    RotaryEmbedding,
-    LlamaAttention,
-    LlamaMLP,
-    LlamaDecoderLayer,
-    LlamaModel,
-    LlamaForCausalLM,
-    
-    # Model creation functions
-    create_llama_7b_parallel,
-    create_llama_13b_parallel,
-    create_llama_30b_parallel,
-    create_llama_65b_parallel,
-    create_llama2_7b_parallel,
-    create_code_llama_7b_parallel,
-    
-    # LLaMA 3 models
-    create_llama3_8b_parallel,
-    create_llama3_8b_instruct_parallel,
-    create_llama3_70b_parallel,
-    create_llama3_70b_instruct_parallel,
-    create_llama3_405b_parallel,
-    
-    # Tiny LLaMA 3 models
-    create_tiny_llama3_150m,
-    create_tiny_llama3_50m,
-    
-    # Utilities
-    optimize_model_for_training,
-    estimate_model_memory,
-    apply_rotary_pos_emb,
-    rotate_half
-)
+# Try importing base model components first
+try:
+    from .base import (
+        BaseModel,
+        LanguageModel,
+        ModelConfig
+    )
+    _BASE_AVAILABLE = True
+except ImportError:
+    _BASE_AVAILABLE = False
 
+# Try importing LLaMA models
+try:
+    from .llama import (
+        LLaMAConfig,
+        RMSNorm,
+        RotaryPositionalEmbedding,
+        LLaMAAttention,
+        LLaMAMLP,
+        LLaMADecoderLayer,
+        LLaMAModel,
+        LLaMAForCausalLM,
+        
+        # Model creation functions
+        create_llama_7b_parallel,
+        create_llama_13b_parallel,
+        create_llama_30b_parallel,
+        create_llama_65b_parallel,
+        create_llama2_7b_parallel,
+        create_code_llama_7b_parallel,
+        
+        # LLaMA 3 models
+        create_llama3_8b_parallel,
+        create_llama3_8b_instruct_parallel,
+        create_llama3_70b_parallel,
+        create_llama3_70b_instruct_parallel,
+        create_llama3_405b_parallel,
+        
+        # Tiny LLaMA 3 models
+        create_tiny_llama3_150m,
+        create_tiny_llama3_50m,
+        
+        # Utilities
+        optimize_model_for_training,
+        estimate_model_memory,
+        apply_rotary_pos_emb,
+        rotate_half
+    )
+    _LLAMA_AVAILABLE = True
+except ImportError:
+    _LLAMA_AVAILABLE = False
+
+# Try importing MoE models
 try:
     from .moe import (
         # Configuration
@@ -87,45 +104,70 @@ try:
 except ImportError:
     _MOE_AVAILABLE = False
 
-# Core exports - always available
-__all__ = [
-    # Configuration
-    "LlamaConfig",
-    
-    # Model components
-    "RMSNorm",
-    "RotaryEmbedding", 
-    "LlamaAttention",
-    "LlamaMLP",
-    "LlamaDecoderLayer",
-    "LlamaModel",
-    "LlamaForCausalLM",
-    
-    # Model creation functions
-    "create_llama_7b_parallel",
-    "create_llama_13b_parallel",
-    "create_llama_30b_parallel", 
-    "create_llama_65b_parallel",
-    "create_llama2_7b_parallel",
-    "create_code_llama_7b_parallel",
-    
-    # LLaMA 3 models
-    "create_llama3_8b_parallel",
-    "create_llama3_8b_instruct_parallel",
-    "create_llama3_70b_parallel",
-    "create_llama3_70b_instruct_parallel", 
-    "create_llama3_405b_parallel",
-    
-    # Tiny LLaMA 3 models
-    "create_tiny_llama3_150m",
-    "create_tiny_llama3_50m",
-    
-    # Utilities
-    "optimize_model_for_training",
-    "estimate_model_memory",
-    "apply_rotary_pos_emb",
-    "rotate_half",
-]
+# Try importing model utilities
+try:
+    from .utils import (
+        WeightInitializer,
+        init_linear_layer,
+        init_embedding_layer,
+        apply_initialization,
+        create_cache
+    )
+    _UTILS_AVAILABLE = True
+except ImportError:
+    _UTILS_AVAILABLE = False
+
+# Core exports - start with empty list and add based on availability
+__all__ = []
+
+# Add base exports if available
+if _BASE_AVAILABLE:
+    __all__.extend([
+        "BaseModel",
+        "LanguageModel", 
+        "ModelConfig"
+    ])
+
+# Add LLaMA exports if available
+if _LLAMA_AVAILABLE:
+    __all__.extend([
+        # Configuration
+        "LLaMAConfig",
+        
+        # Model components
+        "RMSNorm",
+        "RotaryPositionalEmbedding", 
+        "LLaMAAttention",
+        "LLaMAMLP",
+        "LLaMADecoderLayer",
+        "LLaMAModel",
+        "LLaMAForCausalLM",
+        
+        # Model creation functions
+        "create_llama_7b_parallel",
+        "create_llama_13b_parallel",
+        "create_llama_30b_parallel", 
+        "create_llama_65b_parallel",
+        "create_llama2_7b_parallel",
+        "create_code_llama_7b_parallel",
+        
+        # LLaMA 3 models
+        "create_llama3_8b_parallel",
+        "create_llama3_8b_instruct_parallel",
+        "create_llama3_70b_parallel",
+        "create_llama3_70b_instruct_parallel", 
+        "create_llama3_405b_parallel",
+        
+        # Tiny LLaMA 3 models
+        "create_tiny_llama3_150m",
+        "create_tiny_llama3_50m",
+        
+        # Utilities
+        "optimize_model_for_training",
+        "estimate_model_memory",
+        "apply_rotary_pos_emb",
+        "rotate_half",
+    ])
 
 # Add MoE exports if available
 if _MOE_AVAILABLE:
@@ -170,160 +212,76 @@ if _MOE_AVAILABLE:
         "compute_moe_efficiency",
     ])
 
+# Add utils exports if available
+if _UTILS_AVAILABLE:
+    __all__.extend([
+        "WeightInitializer",
+        "init_linear_layer",
+        "init_embedding_layer",
+        "apply_initialization",
+        "create_cache"
+    ])
+
 
 def info():
     """Print information about available models."""
-    print("🦙 Training Infrastructure - Models")
-    print()
-    print("Available LLaMA models:")
-    print("  ✅ LLaMA 7B/13B/30B/65B")
-    print("  ✅ LLaMA 2 7B (extended context)")
-    print("  ✅ Code LLaMA 7B (16k context)")
-    print("  ✅ LLaMA 3 8B/70B/405B")
-    print("  ✅ Tiny LLaMA 3 50M/150M (development)")
+    print("\n🤖 Training Infrastructure - Models")
+    print("=" * 50)
+    
+    print(f"Base models: {'✅ Available' if _BASE_AVAILABLE else '❌ Not available'}")
+    print(f"LLaMA models: {'✅ Available' if _LLAMA_AVAILABLE else '❌ Not available'}")
+    print(f"MoE models: {'✅ Available' if _MOE_AVAILABLE else '❌ Not available'}")
+    print(f"Model utilities: {'✅ Available' if _UTILS_AVAILABLE else '❌ Not available'}")
+    
+    if _LLAMA_AVAILABLE:
+        print("\n📋 Available LLaMA variants:")
+        print("  - Tiny LLaMA (150M, 50M)")
+        print("  - Standard LLaMA (7B, 13B, 30B, 65B)")
+        print("  - LLaMA 2 (7B, 13B, 70B)")
+        print("  - LLaMA 3 (8B, 70B, 405B)")
+        print("  - Code LLaMA variants")
     
     if _MOE_AVAILABLE:
-        print()
-        print("Available LLaMA-MoE models:")
-        print("  ✅ Tiny LLaMA-MoE (4 experts)")
-        print("  ✅ LLaMA-MoE 7B (8 experts)")
-        print("  ✅ LLaMA-MoE 13B (16 experts)")
-        print("  ✅ LLaMA-MoE 30B (32 experts)")
-        print("  ✅ LLaMA-MoE 65B (64 experts)")
-        print("  ✅ Code LLaMA-MoE 7B (8 experts)")
-    else:
-        print()
-        print("LLaMA-MoE models: ❌ Not available (import error)")
+        print("\n📋 Available MoE variants:")
+        print("  - LLaMA-MoE (7B, 13B, 30B, 65B)")
+        print("  - Tiny LLaMA-MoE")
+        print("  - Code LLaMA-MoE")
 
 
-def list_models():
-    """List all available model creation functions."""
-    models = [
-        "create_llama_7b_parallel",
-        "create_llama_13b_parallel", 
-        "create_llama_30b_parallel",
-        "create_llama_65b_parallel",
-        "create_llama2_7b_parallel",
-        "create_code_llama_7b_parallel",
-        "create_llama3_8b_parallel",
-        "create_llama3_8b_instruct_parallel",
-        "create_llama3_70b_parallel",
-        "create_llama3_70b_instruct_parallel",
-        "create_llama3_405b_parallel",
-        "create_tiny_llama3_150m",
-        "create_tiny_llama3_50m",
-    ]
+def get_available_models():
+    """Get list of available model types."""
+    models = []
+    
+    if _LLAMA_AVAILABLE:
+        models.append("llama")
     
     if _MOE_AVAILABLE:
-        models.extend([
-            "create_tiny_llama_moe_model",
-            "create_llama_moe_7b_model",
-            "create_llama_moe_13b_model",
-            "create_code_llama_moe_7b_model",
-        ])
+        models.append("llama-moe")
     
     return models
 
 
-def quick_model_create(model_name: str, **kwargs):
-    """Quick model creation with reasonable defaults."""
-    model_creators = {
-        "tiny_llama3_150m": create_tiny_llama3_150m,
-        "tiny_llama3_50m": create_tiny_llama3_50m,
-        "llama_7b": create_llama_7b_parallel,
-        "llama_13b": create_llama_13b_parallel,
-        "llama2_7b": create_llama2_7b_parallel,
-        "code_llama_7b": create_code_llama_7b_parallel,
-        "llama3_8b": create_llama3_8b_parallel,
-        "llama3_70b": create_llama3_70b_parallel,
-    }
+def create_model(model_type: str, **kwargs):
+    """Create a model instance.
     
-    if _MOE_AVAILABLE:
-        model_creators.update({
-            "tiny_llama_moe": create_tiny_llama_moe_model,
-            "llama_moe_7b": create_llama_moe_7b_model,
-            "llama_moe_13b": create_llama_moe_13b_model,
-            "code_llama_moe_7b": create_code_llama_moe_7b_model,
-        })
+    Args:
+        model_type: Type of model to create
+        **kwargs: Model configuration arguments
     
-    if model_name not in model_creators:
-        available = ", ".join(model_creators.keys())
-        raise ValueError(f"Unknown model '{model_name}'. Available: {available}")
+    Returns:
+        Model instance
+    """
+    if model_type == "llama":
+        if not _LLAMA_AVAILABLE:
+            raise ImportError("LLaMA models not available. Check dependencies.")
+        # Use the existing create functions from llama module
+        return create_tiny_llama3_150m(**kwargs)
     
-    return model_creators[model_name](**kwargs)
-
-
-# Model presets for common configurations
-MODEL_PRESETS = {
-    "development": {
-        "model": "tiny_llama3_150m",
-        "description": "Tiny model for development and testing",
-        "config": {}
-    },
-    "small_production": {
-        "model": "llama3_8b",
-        "description": "Small production model",
-        "config": {"tensor_parallel_size": 1}
-    },
-    "large_production": {
-        "model": "llama3_70b", 
-        "description": "Large production model",
-        "config": {"tensor_parallel_size": 4}
-    },
-}
-
-if _MOE_AVAILABLE:
-    MODEL_PRESETS.update({
-        "development_moe": {
-            "model": "tiny_llama_moe",
-            "description": "Tiny MoE model for development",
-            "config": {}
-        },
-        "production_moe": {
-            "model": "llama_moe_7b",
-            "description": "Production MoE model",
-            "config": {"tensor_parallel_size": 2}
-        },
-    })
-
-
-def create_model_from_preset(preset_name: str, overrides: dict = None) -> any:
-    """Create a model from a preset configuration."""
-    overrides = overrides or {}
+    elif model_type == "llama-moe":
+        if not _MOE_AVAILABLE:
+            raise ImportError("MoE models not available. Check dependencies.")
+        return create_tiny_llama_moe_model(**kwargs)
     
-    if preset_name not in MODEL_PRESETS:
-        available = ", ".join(MODEL_PRESETS.keys())
-        raise ValueError(f"Unknown preset '{preset_name}'. Available: {available}")
-    
-    preset = MODEL_PRESETS[preset_name]
-    config = preset["config"].copy()
-    config.update(overrides)
-    
-    return quick_model_create(preset["model"], **config)
-
-
-def list_model_presets():
-    """List available model presets"""
-    print("📋 Model Presets:")
-    print("=" * 40)
-    
-    for name, preset in MODEL_PRESETS.items():
-        print(f"  • {name}: {preset['description']}")
-        print(f"    Model: {preset['model']}")
-
-
-# Add preset functions to exports
-__all__.extend([
-    "info",
-    "list_models",
-    "quick_model_create",
-    "create_model_from_preset",
-    "list_model_presets",
-    "MODEL_PRESETS"
-])
-
-
-if __name__ == "__main__":
-    info()
-    print()
-    list_model_presets()
+    else:
+        available = get_available_models()
+        raise ValueError(f"Unknown model type: {model_type}. Available: {available}")

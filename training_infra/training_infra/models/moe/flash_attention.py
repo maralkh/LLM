@@ -283,14 +283,26 @@ class LLaMAAttention(nn.Module):
         key_states = self._repeat_kv(key_states, self.num_key_value_groups)
         value_states = self._repeat_kv(value_states, self.num_key_value_groups)
         
-        # Compute attention - use Flash Attention if available
-        try:
-            from .flash_attention import flash_attention_forward
-            attn_output = flash_attention_forward(
-                query_states, key_states, value_states, attention_mask, self.attention_dropout, self.training
-            )
-            attn_weights = None
-        except ImportError:
+        # Compute attention - use Flash Attention if available and beneficial
+        use_flash_attn = (
+            hasattr(self.config, 'use_flash_attention') and 
+            self.config.use_flash_attention and
+            query_states.dtype in [torch.float16, torch.bfloat16]
+        )
+        
+        if use_flash_attn:
+            try:
+                from .flash_attention import flash_attention_forward
+                attn_output = flash_attention_forward(
+                    query_states, key_states, value_states, attention_mask, 
+                    self.attention_dropout, self.training
+                )
+                attn_weights = None
+            except (ImportError, RuntimeError):
+                # Fallback to standard attention
+                use_flash_attn = False
+        
+        if not use_flash_attn:
             # Standard attention computation
             attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
             
