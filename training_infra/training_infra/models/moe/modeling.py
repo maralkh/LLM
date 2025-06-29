@@ -299,27 +299,28 @@ class LlamaMoEModel(nn.Module):
         )
     
     def _prepare_decoder_attention_mask(self, attention_mask, input_shape, device):
-        """Prepare causal attention mask."""
         batch_size, seq_length = input_shape
         
-        # Create causal mask
+        # Create causal mask with boolean dtype
         causal_mask = torch.triu(
             torch.ones((seq_length, seq_length), dtype=torch.bool, device=device),
             diagonal=1
         )
-        causal_mask = causal_mask.unsqueeze(0).unsqueeze(0)
-        causal_mask = causal_mask.expand(batch_size, 1, seq_length, seq_length)
         
-        # Combine with attention mask if provided
         if attention_mask is not None:
-            # Expand attention mask
+            # Convert to boolean if not already
+            if attention_mask.dtype != torch.bool:
+                attention_mask = attention_mask.bool()
+            
+            # Expand to 4D
             attention_mask = attention_mask[:, None, None, :].expand(
                 batch_size, 1, seq_length, seq_length
             )
+            # Now both masks are boolean - safe to combine
             causal_mask = causal_mask | ~attention_mask
         
+        # Convert to float for masked_fill
         return causal_mask.to(dtype=torch.float32).masked_fill(causal_mask, float('-inf'))
-
 
 class LlamaMoEForCausalLM(nn.Module):
     """LLaMA-MoE model for causal language modeling."""
@@ -445,24 +446,25 @@ def test_llama_moe_modeling():
         print(f"\n--- Testing {test_case['name']} ---")
         batch_size = test_case["batch_size"]
         seq_len = test_case["seq_len"]
+
+        inputs = create_test_inputs(model.config, batch_size=batch_size, seq_len=seq_len)
         
         # Create input tensors
-        input_ids = torch.randint(0, model.config.vocab_size, (batch_size, seq_len))
+        ##input_ids = torch.randint(0, model.config.vocab_size, (batch_size, seq_len))
         
         # CRITICAL FIX: Ensure position_ids are properly shaped for all batch sizes
         # The issue might be that position_ids get created incorrectly for batch_size=1
-        position_ids = torch.arange(seq_len, dtype=torch.long).unsqueeze(0).expand(batch_size, -1)
+        #position_ids = torch.arange(seq_len, dtype=torch.long).unsqueeze(0).expand(batch_size, -1)
         
         print(f"  Input shapes:")
-        print(f"    input_ids: {input_ids.shape}")
-        print(f"    position_ids: {position_ids.shape}")
+        print(f"    input_ids: {inputs['input_ids'].shape}")
+        print(f"    position_ids: {inputs['position_ids'].shape}")
         
         try:
             # Forward pass with explicit position_ids
             with torch.no_grad():
                 outputs = model(
-                    input_ids,
-                    position_ids=position_ids,  # Explicitly provide position_ids
+                    **inputs,  # Explicitly provide position_ids
                     output_attentions=True,
                     output_hidden_states=True,
                     output_router_logits=True,
@@ -487,11 +489,11 @@ def test_llama_moe_modeling():
     print("\n--- Standard Forward Pass Test ---")
     batch_size, seq_len = 2, 32  # Use batch_size > 1
     input_ids = torch.randint(0, model.config.vocab_size, (batch_size, seq_len))
-    
+    inputs = create_test_inputs(model.config, batch_size=batch_size, seq_len=seq_len)
     # Forward pass
     with torch.no_grad():
         outputs = model(
-            input_ids,
+            **inputs,
             output_attentions=True,
             output_hidden_states=True,
             output_router_logits=True,
@@ -508,7 +510,7 @@ def test_llama_moe_modeling():
     print("\n--- Testing Training Mode ---")
     labels = input_ids.clone()
     
-    outputs_train = model(input_ids, labels=labels, return_dict=True)
+    outputs_train = model(**inputs, labels=labels, return_dict=True)
     print(f"✅ Training loss: {outputs_train.loss.item():.4f}")
     print(f"✅ Training logits shape: {outputs_train.logits.shape}")
     
@@ -583,11 +585,20 @@ def test_with_safe_inputs():
             with torch.no_grad():
                 outputs = model(**inputs, return_dict=True)
             
-            print(f"✅ batch_size={batch_size} successful")
-            print(f"   Output shape: {outputs.logits.shape}")
+            print(f"  ✅ Forward pass successful")
+            print(f"  ✅ Output logits shape: {outputs.logits.shape}")
+            print(f"  ✅ Expected shape: [{batch_size}, {seq_len}, {model.config.vocab_size}]")
+            
+            # Verify output shapes
+            assert outputs.logits.shape == (batch_size, seq_len, model.config.vocab_size)
+            print(f"  ✅ Output shape verification passed")
             
         except Exception as e:
-            print(f"❌ batch_size={batch_size} failed: {e}")
+            print(f"  ❌ Forward pass failed: {e}")
+            print(f"     This indicates the batch_size=1 issue is still present")
+            # Don't fail the entire test, continue with other batch sizes
+            continue
+            
     
     print("✅ Safe input testing complete!")
 

@@ -166,7 +166,7 @@ def create_tiny_llama_moe():
         max_position_embeddings=2048,
         rms_norm_eps=1e-6,
         hidden_act="silu",  # Add activation function
-        num_experts=1,
+        num_experts=4,
         num_experts_per_token=1,
         moe_layers=[1, 3],  # MoE in layers 1 and 3
         use_auxiliary_loss=True,
