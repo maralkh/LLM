@@ -1,4 +1,4 @@
-# training_infra/config/validation.py
+# training_infra/config/validation.py - UPDATED
 """
 Configuration Validation System
 
@@ -19,7 +19,8 @@ from .base import BaseConfig, ConfigValidationError
 
 class ValidationRule:
     """
-    A validation rule that can be applied to configuration fields.
+    A validation rule that can be applied to configuration objects.
+    Simplified to work with whole config objects only.
     """
     
     def __init__(
@@ -42,18 +43,9 @@ class ValidationRule:
             None if valid, error message if invalid
         """
         try:
-            value = getattr(config, self.field_name, None)
-            
-            # Check if field is required
-            if value is None and self.required:
-                return f"Required field '{self.field_name}' is missing"
-            
-            # Skip validation if field is optional and None
-            if value is None and not self.required:
-                return None
-            
-            # Apply validator
-            if not self.validator(value):
+            # Always pass the whole config to the validator
+            # The validator function should handle accessing the right field
+            if not self.validator(config):
                 return f"Field '{self.field_name}': {self.error_message}"
             
             return None

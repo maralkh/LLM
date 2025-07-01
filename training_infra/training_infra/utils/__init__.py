@@ -26,6 +26,19 @@ from .cache import (
     test_cache_implementations
 )
 
+from .setup import (
+    setup_device,
+    extract_parallelism_config,
+    setup_parallelism,
+    setup_distributed,
+    setup_optimizer,
+    setup_scheduler,
+    setup_mixed_precision,
+    setup_data_loaders,
+    count_parameters,
+    print_training_setup,
+)
+
 __all__ = [
     # Initialization utilities
     'WeightInitializer',
@@ -45,5 +58,17 @@ __all__ = [
     'SlidingWindowCache',
     'QuantizedCache',
     'create_cache',
-    'test_cache_implementations'
+    'test_cache_implementations',
+
+    # trainer setup
+    "setup_device",
+    "extract_parallelism_config", 
+    "setup_parallelism",
+    "setup_distributed",
+    "setup_optimizer",
+    "setup_scheduler",
+    "setup_mixed_precision",
+    "setup_data_loaders",
+    "count_parameters",
+    "print_training_setup",
 ]

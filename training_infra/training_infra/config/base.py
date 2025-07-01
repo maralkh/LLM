@@ -1,10 +1,10 @@
-# training_infra/config/base.py
+# training_infra/config/base.py - FIXED VERSION
 """
 Base Configuration System
 
 Provides the foundation for all configuration classes with:
 - Dataclass-based structure
-- YAML/JSON serialization 
+- YAML/JSON serialization with nested object support
 - Validation support
 - Type checking
 - Default value management
@@ -13,7 +13,7 @@ Provides the foundation for all configuration classes with:
 import os
 import json
 import yaml
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, asdict, field, is_dataclass
 from typing import Any, Dict, Optional, Union, Type
 from pathlib import Path
 import warnings
@@ -28,7 +28,7 @@ class BaseConfig:
     Base configuration class that all other configs inherit from.
     
     Provides common functionality:
-    - Serialization to/from YAML and JSON
+    - Serialization to/from YAML and JSON with nested object support
     - Validation
     - Dictionary conversion
     - Environment variable support
@@ -65,8 +65,24 @@ class BaseConfig:
         pass
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert configuration to dictionary."""
-        return asdict(self)
+        """Convert configuration to dictionary with nested object support."""
+        def convert_value(value):
+            if is_dataclass(value) and hasattr(value, 'to_dict'):
+                return value.to_dict()
+            elif is_dataclass(value):
+                return asdict(value)
+            elif isinstance(value, (list, tuple)):
+                return [convert_value(item) for item in value]
+            elif isinstance(value, dict):
+                return {k: convert_value(v) for k, v in value.items()}
+            else:
+                return value
+        
+        result = {}
+        for key, value in asdict(self).items():
+            result[key] = convert_value(value)
+        
+        return result
     
     def to_yaml(self) -> str:
         """Convert configuration to YAML string."""
@@ -98,9 +114,31 @@ class BaseConfig:
     
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> 'BaseConfig':
-        """Create configuration from dictionary."""
+        """Create configuration from dictionary with nested object reconstruction."""
+        # Get the field types from the dataclass
+        field_types = {}
+        if hasattr(cls, '__dataclass_fields__'):
+            for field_name, field_info in cls.__dataclass_fields__.items():
+                field_types[field_name] = field_info.type
+        
+        # Process the config dict to reconstruct nested objects
+        processed_dict = {}
+        for key, value in config_dict.items():
+            if key in field_types:
+                field_type = field_types[key]
+                
+                # Check if this field should be a dataclass
+                if (isinstance(value, dict) and 
+                    hasattr(field_type, '__dataclass_fields__')):
+                    # Reconstruct the nested object
+                    processed_dict[key] = field_type.from_dict(value)
+                else:
+                    processed_dict[key] = value
+            else:
+                processed_dict[key] = value
+        
         try:
-            return cls(**config_dict)
+            return cls(**processed_dict)
         except TypeError as e:
             raise ConfigValidationError(f"Invalid configuration dictionary: {e}")
     
